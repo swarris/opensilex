@@ -12,6 +12,7 @@ import java.net.URI;
 import org.opensilex.OpenSilexModule;
 
 import java.util.List;
+import java.util.Properties;
 import javax.inject.Inject;
 import org.apache.jena.riot.Lang;
 import org.apache.jena.vocabulary.OA;
@@ -127,5 +128,4 @@ public class CoreModule extends OpenSilexModule implements APIExtension, SPARQLE
            LOGGER.warn("Couldn't create default provenance : " + e.getMessage());
         }
     }
-
 }

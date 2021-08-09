@@ -52,4 +52,35 @@ public interface ServerConfig {
             defaultString = ""
     )
     String pathPrefix();
+    
+    @ConfigDescription(
+            value = "Instance title",
+            defaultString = "OpenSILEX"
+    )
+    public String instanceTitle();
+    
+    @ConfigDescription(
+            value = "Instance description",
+            defaultString = "OpenSILEX is an ontology-driven Information System designed for life science data."
+    )
+    public String instanceDescription();
+    
+    
+    @ConfigDescription(
+            value = "Contact name",
+            defaultString = "OpenSILEX Team"
+    )
+    public String contactName();
+    
+    @ConfigDescription(
+            value = "Contact e-mail",
+            defaultString = "opensilex@gmail.com"
+    )
+    public String contactEmail();
+    
+    @ConfigDescription(
+            value = "Contact url",
+            defaultString = "http://www.opensilex.org/"
+    )
+    public String contactUrl();
 }
