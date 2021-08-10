@@ -697,10 +697,10 @@ import PositionList from './positions/list/PositionList.vue';
 components["opensilex-PositionList"] = PositionList;
 
 // Tools
-// import PackagesInfos from './tools/PackagesInfos.vue';
-// components["opensilex-PackagesInfos"] = PackagesInfos;
-// import SystemInfo from './tools/SystemInfo.vue';
-// components["opensilex-SystemInfo"] = SystemInfo; 
+import PackagesView from './tools/PackagesView.vue';
+components["opensilex-PackagesView"] = PackagesView;
+import SystemView from './tools/SystemView.vue';
+components["opensilex-SystemView"] = SystemView; 
  
  
 export default components;
