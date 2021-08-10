@@ -165,7 +165,6 @@ menu:
           path: /packages
           component: opensilex-PackagesView
 
-
 routes:
   - path: /infrastructure/details/:uri
     component: opensilex-InfrastructureDetailView
