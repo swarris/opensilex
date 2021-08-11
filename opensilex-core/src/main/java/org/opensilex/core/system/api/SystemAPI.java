@@ -12,7 +12,6 @@ import java.io.FileReader;
 import java.net.URL;
 import java.util.ArrayList;
 import org.opensilex.server.response.ErrorResponse;
-import org.opensilex.sparql.service.SPARQLService;
 
 import javax.inject.Inject;
 import javax.ws.rs.*;
@@ -22,12 +21,9 @@ import java.util.List;
 import java.util.Properties;
 import org.opensilex.OpenSilex;
 import org.opensilex.OpenSilexModule;
-import org.opensilex.core.CoreModule;
 import org.opensilex.security.authentication.injection.CurrentUser;
 import org.opensilex.security.user.dal.UserModel;
-import org.opensilex.server.ServerConfig;
 import org.opensilex.server.ServerModule;
-import static org.opensilex.server.extensions.APIExtension.LOGGER;
 import org.opensilex.server.response.SingleObjectResponse;
 import org.opensilex.utils.ClassUtils;
 import org.slf4j.Logger;
@@ -63,7 +59,7 @@ public class SystemAPI {
         VersionInfoDTO versionInfoDTO = new VersionInfoDTO();   
         
         // title
-        versionInfoDTO.setTitle(this.serverModule.getConfig(ServerConfig.class).instanceTitle());
+        versionInfoDTO.setTitle(this.serverModule.getOpenSilex().getSystemConfig().instanceTitle());
 
         // version
         versionInfoDTO.setVersion(this.serverModule.getOpenSilexVersion()); 
@@ -78,14 +74,14 @@ public class SystemAPI {
         versionInfoDTO.setModulesVersion(modulesVersion); 
         
         // description
-        versionInfoDTO.setDescription(this.serverModule.getConfig(ServerConfig.class).instanceDescription());
+        versionInfoDTO.setDescription(this.serverModule.getOpenSilex().getSystemConfig().instanceDescription());
         
         // contact
         versionInfoDTO.setContact(
             new ApiContactInfoDTO(
-                this.serverModule.getConfig(ServerConfig.class).contactName(), 
-                this.serverModule.getConfig(ServerConfig.class).contactEmail(),
-                new URL(this.serverModule.getConfig(ServerConfig.class).projectHomepage())
+                this.serverModule.getOpenSilex().getSystemConfig().contactName(), 
+                this.serverModule.getOpenSilex().getSystemConfig().contactEmail(),
+                new URL(this.serverModule.getOpenSilex().getSystemConfig().projectHomepage())
             )
         );
         
