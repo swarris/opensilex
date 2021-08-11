@@ -4,11 +4,7 @@
 // Copyright © INRA 2021
 // Contact: arnaud.charleroy@inrae.fr, anne.tireau@inrae.fr, pascal.neveu@inrae.fr
 //******************************************************************************
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
+
 package org.opensilex.core.system.api;
 
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
@@ -16,31 +12,29 @@ import io.swagger.annotations.ApiModelProperty;
 import java.net.URL;
 
 /**
- *
+ * Class that represents informations about system contact
  * @author Arnaud Charleroy
  */
-@JsonPropertyOrder({"name", "email", "url"})
+@JsonPropertyOrder({"name", "email", "homepage"})
 public class ApiContactInfoDTO {
 
-   
     private String name;
-    
    
     private String email;
      
-    private URL url;
+    private URL homepage;
 
     public ApiContactInfoDTO() {
     }
 
     public ApiContactInfoDTO(URL url) {
-        this.url = url;
+        this.homepage = url;
     }
 
     public ApiContactInfoDTO(String name, String email, URL url) {
         this.name = name;
         this.email = email;
-        this.url = url;
+        this.homepage = url;
     }
     
     @ApiModelProperty(value = "Opensilex Team", example = "Opensilex Team")
@@ -61,12 +55,11 @@ public class ApiContactInfoDTO {
         this.email = email;
     }
 
-    public URL getUrl() {
-        return url;
+    public URL getHomepage() {
+        return homepage;
     }
 
-    public void setUrl(URL url) {
-        this.url = url;
+    public void setHomepage(URL homepage) {
+        this.homepage = homepage;
     }
-
 }

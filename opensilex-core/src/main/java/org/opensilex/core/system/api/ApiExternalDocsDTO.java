@@ -1,14 +1,9 @@
 //******************************************************************************
-//                        externalDocs.java
+//                        ApiExternalDocsDTO.java
 // OpenSILEX - Licence AGPL V3.0 - https://www.gnu.org/licenses/agpl-3.0.en.html
 // Copyright © INRA 2021
 // Contact: arnaud.charleroy@inrae.fr, anne.tireau@inrae.fr, pascal.neveu@inrae.fr
 //******************************************************************************
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 
 package org.opensilex.core.system.api;
 
@@ -16,7 +11,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import io.swagger.annotations.ApiModelProperty;
 
 /**
- *
+ * Class that represents informations about external docs
  * @author Arnaud Charleroy
  */
 @JsonPropertyOrder({"description", "url"})
@@ -36,7 +31,6 @@ public class ApiExternalDocsDTO {
         this.description = description;
         this.url = url;
     }
-
     
     public String getDescription() {
         return description;
@@ -53,7 +47,4 @@ public class ApiExternalDocsDTO {
     public void setUrl(String url) {
         this.url = url;
     }
-    
-    
-
 }

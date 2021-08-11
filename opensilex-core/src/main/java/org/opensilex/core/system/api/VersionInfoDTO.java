@@ -4,22 +4,19 @@
 // Copyright © INRA 2021
 // Contact: arnaud.charleroy@inrae.fr, anne.tireau@inrae.fr, pascal.neveu@inrae.fr
 //******************************************************************************
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
+
 package org.opensilex.core.system.api;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import io.swagger.annotations.ApiModelProperty;
 import java.util.List;
 
 /**
- *
+ * Class that represents the whole information of the system
  * @author Arnaud Charleroy
  */
-@JsonPropertyOrder({"title", "version", "description", "contact", "license", "modulesVersion"})
+@JsonPropertyOrder({"title", "version", "description", "contact", "license", "modules_version"})
 public class VersionInfoDTO {
 
 //         
@@ -75,7 +72,8 @@ public class VersionInfoDTO {
 
     private ApiGitCommitDTO gitCommit;
     
-    
+    private String githubPage;
+
     @ApiModelProperty(value = "Opensilex instance name", example = "PHIS") 
     public String getTitle() {
         return title;
@@ -93,7 +91,8 @@ public class VersionInfoDTO {
     public void setVersion(String version) {
         this.version = version;
     }
-
+    
+    @JsonProperty("modules_version")
     public List<ApiModulesInfo> getModulesVersion() {
         return modulesVersion;
     }
@@ -126,7 +125,8 @@ public class VersionInfoDTO {
     public void setLicense(ApiLicenseInfoDTO license) {
         this.license = license;
     }
-
+    
+    @JsonProperty("external_docs")
     public ApiExternalDocsDTO getExternalDocs() {
         return externalDocs;
     }
@@ -135,6 +135,7 @@ public class VersionInfoDTO {
         this.externalDocs = externalDocs;
     }
 
+    @JsonProperty("api_docs")
     public ApiExternalDocsDTO getApiDocs() {
         return apiDocs;
     }
@@ -143,12 +144,22 @@ public class VersionInfoDTO {
         this.apiDocs = apiDocs;
     }
 
+    @JsonProperty("git_commit")
     public ApiGitCommitDTO getGitCommit() {
         return gitCommit;
     }
 
     public void setGitCommit(ApiGitCommitDTO gitCommit) {
         this.gitCommit = gitCommit;
+    }
+
+    @JsonProperty("github_page")
+    public String getGithubPage() {
+        return githubPage;
+    }
+
+    public void setGithubPage(String githubPage) {
+        this.githubPage = githubPage;
     }
 
     

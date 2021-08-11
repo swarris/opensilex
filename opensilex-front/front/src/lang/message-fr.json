@@ -195,7 +195,12 @@
             "scientific-organisation": "Organisation scientifique",
             "devices": "Dispositifs",
             "events" : "Évènements",
-            "vocabulary" : "Vocabulaire"
+            "vocabulary" : "Vocabulaire",
+            "tools" : {
+                "label": "Outils",
+                "system": "Système",
+                "packages": "Librairies"
+            }
 
         },
         "login": {

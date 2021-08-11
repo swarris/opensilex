@@ -4,18 +4,14 @@
 // Copyright © INRA 2021
 // Contact: arnaud.charleroy@inrae.fr, anne.tireau@inrae.fr, pascal.neveu@inrae.fr
 //******************************************************************************
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
+
 package org.opensilex.core.system.api;
 
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import io.swagger.annotations.ApiModelProperty;
 
 /**
- *
+ * Class that represents informations about software license
  * @author Arnaud Charleroy
  */
 @JsonPropertyOrder({"name", "url"})
@@ -50,5 +46,4 @@ public class ApiLicenseInfoDTO {
     public void setUrl(String url) {
         this.url = url;
     }
-
 }

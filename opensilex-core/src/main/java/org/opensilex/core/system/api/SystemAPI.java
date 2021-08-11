@@ -30,23 +30,19 @@ import org.opensilex.server.ServerModule;
 import static org.opensilex.server.extensions.APIExtension.LOGGER;
 import org.opensilex.server.response.SingleObjectResponse;
 import org.opensilex.utils.ClassUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * @author Renaud COLIN
+ * Class that represents System API ressources
+ * @author Arnaud Charleroy
  */
 @Api(SystemAPI.CREDENTIAL_SYSTEM_GROUP_ID)
 @Path("/core/system")
 public class SystemAPI {
-
-
-    public static final String CREDENTIAL_SYSTEM_GROUP_ID = "System";
-
-    @Inject
-    private SPARQLService sparql;
-
     
-    @Inject
-    private CoreModule coreModule;
+    private final static Logger LOGGER = LoggerFactory.getLogger(SystemAPI.class);
+    public static final String CREDENTIAL_SYSTEM_GROUP_ID = "System";
     
     @Inject
     private ServerModule serverModule;
@@ -55,12 +51,12 @@ public class SystemAPI {
     UserModel user;
 
     @GET
-    @Path("/versionInfo")
-    @ApiOperation("get version informations")
+    @Path("/info")
+    @ApiOperation("get system information")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @ApiResponses(value = {
-        @ApiResponse(code = 200, message = "Return API version info", response = VersionInfoDTO.class, responseContainer = "List"),
+        @ApiResponse(code = 200, message = "Return API version info", response = VersionInfoDTO.class),
         @ApiResponse(code = 500, message = "Internal Server Error", response = ErrorResponse.class)
     })
     public Response getVersionInfo() throws Exception { 
@@ -70,11 +66,13 @@ public class SystemAPI {
         versionInfoDTO.setTitle(this.serverModule.getConfig(ServerConfig.class).instanceTitle());
 
         // version
-        versionInfoDTO.setVersion(this.coreModule.getOpenSilexVersion()); 
+        versionInfoDTO.setVersion(this.serverModule.getOpenSilexVersion()); 
         
          // Add version in list for all modules
         List<ApiModulesInfo> modulesVersion = new ArrayList<>();
-        this.coreModule.getOpenSilex().getModules().forEach((OpenSilexModule module) -> { 
+        LOGGER.debug("List loaded modules");
+        this.serverModule.getOpenSilex().getModules().forEach((OpenSilexModule module) -> {
+            LOGGER.debug(module.getClass().getSimpleName() + "-" + module.getMavenProperties().toString());
             modulesVersion.add(new ApiModulesInfo(module.getClass().getCanonicalName(),module.getOpenSilexVersion()));
         });
         versionInfoDTO.setModulesVersion(modulesVersion); 
@@ -87,7 +85,7 @@ public class SystemAPI {
             new ApiContactInfoDTO(
                 this.serverModule.getConfig(ServerConfig.class).contactName(), 
                 this.serverModule.getConfig(ServerConfig.class).contactEmail(),
-                new URL(this.serverModule.getConfig(ServerConfig.class).contactUrl())
+                new URL(this.serverModule.getConfig(ServerConfig.class).projectHomepage())
             )
         );
         
@@ -99,20 +97,25 @@ public class SystemAPI {
                 )
         );
         
-        // external Docs
+        // external docs
         versionInfoDTO.setExternalDocs(
             new ApiExternalDocsDTO(
-                "Opensilex external docs",
+                "Opensilex dev documentation",
                 "https://github.com/OpenSILEX/opensilex/blob/master/opensilex-doc/src/main/resources/index.md"
             )
         );
         
-        // Api Docs
+
+        // api docs
         versionInfoDTO.setApiDocs( 
             new ApiExternalDocsDTO(
-                "Opensilex api docs",
+                "Opensilex API documentation",
                 this.serverModule.getBaseURL() + "api-docs"
             )
+        );
+        
+        versionInfoDTO.setGithubPage(
+        "https://github.com/OpenSILEX/opensilex"
         );
         
         ApiGitCommitDTO gitInfo = null;

@@ -4,18 +4,14 @@
 // Copyright © INRA 2021
 // Contact: arnaud.charleroy@inrae.fr, anne.tireau@inrae.fr, pascal.neveu@inrae.fr
 //******************************************************************************
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
+
 package org.opensilex.core.system.api;
 
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import io.swagger.annotations.ApiModelProperty;
 
 /**
- *
+ * Informations about loaded modules
  * @author Arnaud Charleroy
  */
 @JsonPropertyOrder({"name", "version"})
@@ -31,8 +27,6 @@ public class ApiModulesInfo {
         this.name = name;
         this.version = version;
     }
-
-    
     
     public String getName() {
         return name;

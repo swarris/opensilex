@@ -12,14 +12,20 @@
 
 package org.opensilex.core.system.api;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+
 /**
- *
+ * Class that represents informations about lastest commit
  * @author Arnaud Charleroy
  */
+@JsonPropertyOrder({"commit_id", "commit_message"})
 public class ApiGitCommitDTO {
     
+    @JsonProperty("commit_id")
     private String commitId;
     
+    @JsonProperty("commit_message")
     private String commitMessage;
 
     public ApiGitCommitDTO(String commitId, String commitMessage) {

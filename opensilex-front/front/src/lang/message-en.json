@@ -194,7 +194,12 @@
             "scientific-organisation": "Scientific Organization",
             "devices": "Devices",
             "events" : "Events",
-            "vocabulary" : "Vocabulary"
+            "vocabulary" : "Vocabulary",
+            "tools" : {
+                "label": "Tools",
+                "system": "System",
+                "packages": "Packages"
+            }
         },
         "login": {
             "input": {

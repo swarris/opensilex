@@ -74,13 +74,13 @@ public interface ServerConfig {
     
     @ConfigDescription(
             value = "Contact e-mail",
-            defaultString = "opensilex@gmail.com"
+            defaultString = "opensilex-help@groupes.renater.fr"
     )
     public String contactEmail();
     
     @ConfigDescription(
-            value = "Contact url",
+            value = "Project homepage",
             defaultString = "http://www.opensilex.org/"
     )
-    public String contactUrl();
+    public String projectHomepage();
 }
