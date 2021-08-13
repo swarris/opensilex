@@ -138,11 +138,11 @@ export default class SystemView extends Vue {
   }
 
   getVersion() {
-    let githubAccount = "https://github.com/OpenSILEX/opensilex"
+    
     if ("BUILD-SNAPSHOT" == this.versionInfo.version) {
-      return githubAccount  + "/releases";
+      return this.versionInfo.github_page + "/releases";
     }
-    return githubAccount + "/tag/" + this.versionInfo.version;
+    return this.versionInfo.github_page + "/tag/" + this.versionInfo.version;
   }
 }
 </script>

@@ -17,42 +17,7 @@ import java.util.List;
  * @author Arnaud Charleroy
  */
 @JsonPropertyOrder({"title", "version", "description", "contact", "license", "modules_version"})
-public class VersionInfoDTO {
-
-//         
-//title: Opensilex
-//API version. You can use semantic versioning like 1.0.0,
-//or an arbitrary string like 0.99-beta. Required.
-//version: 1.0.0
-//
-//modulesVersion: [
-//opensilex-core : '1.0.0b+2',
-//inrae-sunagri : '1.0.0',
-//]
-//
-//API description. Arbitrary text in CommonMark or HTML.
-//description: This is a sample server for a pet store.
-//
-//Link to the page that describes the terms of service.
-//Must be in the URL format.
-//Contact information: name, email, URL.
-//contact:
-//name: API Support
-//email: support@example.com
-//url: http://example.com/support
-//
-//Name of the license and a URL to the license description.
-//license:
-//name: Apache 2.0
-//url: Apache License, Version 2.0
-//Link to the external documentation (if any).
-//Code or documentation
-//
-//externalDocs:
-//description: Find out more
-//url: http://example.com
-//
-//}
+public class VersionInfoDTO { 
     
     private String title;
 
