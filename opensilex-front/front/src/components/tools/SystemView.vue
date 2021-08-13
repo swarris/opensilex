@@ -142,7 +142,7 @@ export default class SystemView extends Vue {
     if ("BUILD-SNAPSHOT" == this.versionInfo.version) {
       return this.versionInfo.github_page + "/releases";
     }
-    return this.versionInfo.github_page + "/tag/" + this.versionInfo.version;
+    return this.versionInfo.github_page + "/releases/tag/" + this.versionInfo.version;
   }
 }
 </script>
