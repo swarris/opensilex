@@ -18,7 +18,7 @@
         >
           <template v-slot:body>
             <b-row>
-              <b-col cols="1">
+              <b-col cols="3">
                 <b-img
                   height="30"
                   src="https://www.python.org/static/community_logos/python-logo-generic.svg"
@@ -34,7 +34,7 @@
               </b-col>
             </b-row>
             <b-row>
-              <b-col cols="1">
+              <b-col cols="3">
                 <b-img
                   height="25"
                   src="https://www.r-project.org/logo/Rlogo.svg"
@@ -51,7 +51,7 @@
             </b-row>
 
             <b-row>
-              <b-col cols="1">
+              <b-col cols="3">
                 <b-img
                   height="25"
                   src="https://upload.wikimedia.org/wikipedia/commons/f/fe/Dart_programming_language_logo.svg"
@@ -89,7 +89,7 @@ export default class PackagesView extends Vue {
   $store: any;
 
   service: SystemService;
-
+  
   versionInfo: VersionInfoDTO = {};
 
   getVersion() {

@@ -14,52 +14,57 @@
               <b-col cols="4">
                 <opensilex-StringView
                   label="SystemView.title"
-                  :value="version_info.title"
-                ></opensilex-StringView>
-                <opensilex-StringView
-                  label="SystemView.version"
-                  :value="version_info.version"
-                ></opensilex-StringView>
+                  :value="versionInfo.title"
+                ></opensilex-StringView> 
 
                 <opensilex-UriView
-                  title="SystemView.api-docs"
-                  :uri="version_info.api_docs.url"
-                  :value="version_info.api_docs.description"
+                  title="SystemView.version"
+                  :uri="getVersion()"
+                  :value="versionInfo.version"
                   target="_blank"
                 ></opensilex-UriView>
 
                 <opensilex-UriView
-                  title="SystemView.git-commit"
-                  :uri="version_info.git_commit.commit_id"
-                  :value="version_info.git_commit.commit_message"
+                  title="SystemView.api-docs"
+                  :uri="versionInfo.api_docs.url"
+                  :value="versionInfo.api_docs.description"
+                  target="_blank"
+                ></opensilex-UriView>
+
+                <opensilex-StringView
+                  label="SystemView.git-commit"
+                  :copyValue="versionInfo.git_commit.commit_id"
+                  :value="versionInfo.git_commit.commit_message"
+                  :allowCopy="true"
+                  copyTextMessage="SystemView.git-commit-copy"
                   target="_blank"
                 >
-                </opensilex-UriView>
+                </opensilex-StringView>
               </b-col>
               <b-col>
                 <opensilex-TextView
                   label="SystemView.description"
-                  :value="version_info.description"
+                  :value="versionInfo.description"
                 ></opensilex-TextView>
 
                 <opensilex-UriView
                   title="SystemView.contact"
-                  :uri="version_info.contact.email"
-                  :value="version_info.contact.email"
-                  :href="'mailto:' + version_info.contact.email" 
+                  :uri="versionInfo.contact.email"
+                  :value="versionInfo.contact.email"
+                  :href="'mailto:' + versionInfo.contact.email" 
                 ></opensilex-UriView>
 
                 <opensilex-UriView
                   title="SystemView.project"
-                  :uri="version_info.contact.homepage"
+                  :uri="versionInfo.contact.homepage"
                   value="OpenSILEX homepage"
                   target="_blank"
                 ></opensilex-UriView>
 
                 <opensilex-LabelUriView
                   label="SystemView.license"
-                  :uri="version_info.license.url"
-                  :value="version_info.license.name"
+                  :uri="versionInfo.license.url"
+                  :value="versionInfo.license.name"
                   target="_blank"
                   :allowCopy="false"
                 ></opensilex-LabelUriView>
@@ -70,10 +75,10 @@
             <h4>{{ $t("SystemView.loaded-modules") }}</h4>
             <opensilex-TableView
               v-if="
-                version_info.modules_version != undefined &&
-                version_info.modules_version.length > 0
+                versionInfo.modules_version != undefined &&
+                versionInfo.modules_version.length > 0
               "
-              :items="version_info.modules_version"
+              :items="versionInfo.modules_version"
               :fields="modulesFields"
               :showCount="false"
               :withPagination="false"
@@ -91,7 +96,7 @@
 import { Component } from "vue-property-decorator";
 import Vue from "vue";
 // @ts-ignore
-import { SystemService, version_infoDTO } from "opensilex-core/index";
+import { SystemService, versionInfoDTO } from "opensilex-core/index";
 // @ts-ignore
 import HttpResponse, {
   OpenSilexResponse,
@@ -100,11 +105,12 @@ import HttpResponse, {
 @Component
 export default class SystemView extends Vue {
   $opensilex: any;
-  $store: any;
-
+  $store: any; 
   service: SystemService;
 
-  version_info: version_infoDTO = {};
+  githubAccount
+
+  versionInfo: versionInfoDTO = {};
 
   modulesFields: any[] = [
     {
@@ -123,17 +129,27 @@ export default class SystemView extends Vue {
     this.service = this.$opensilex.getService("opensilex.SystemService");
     this.service
       .getVersionInfo()
-      .then((http: HttpResponse<OpenSilexResponse<version_infoDTO>>) => {
-        this.version_info = http.response.result;
+      .then((http: HttpResponse<OpenSilexResponse<versionInfoDTO>>) => {
+        this.versionInfo = http.response.result;
       })
       .catch((error) => {
         this.$opensilex.errorHandler(error);
       });
   }
+
+  getVersion() {
+    let githubAccount = "https://github.com/OpenSILEX/opensilex"
+    if ("BUILD-SNAPSHOT" == this.versionInfo.version) {
+      return githubAccount  + "/releases";
+    }
+    return githubAccount + "/tag/" + this.versionInfo.version;
+  }
 }
 </script>
 
 <style scoped lang="scss">
+
+
 </style>
 <i18n>
 en:
@@ -146,6 +162,7 @@ en:
     contact: Contact e-mail
     api-docs: API documentation link
     git-commit : Last commit Id
+    git-commit-copy : Copy last commit Id
     description : Description
     title-description : Informations about information system
     license: Software license
@@ -161,10 +178,11 @@ fr:
     project: Page du projet
     contact: E-mail du contact
     api-docs: URL Documentation API
-    git-commit : Dernier id commit
-    description : Description
-    title-description : Informations à propos du système d'information
+    git-commit: Dernier id commit
+    git-commit-copy: Copier le dernier id commit
+    description: Description
+    title-description: Informations à propos du système d'information
     license: Licence logicielle
-    loaded-modules : Modules chargés
-    name : Nom
+    loaded-modules: Modules chargés
+    name: Nom
 </i18n>
