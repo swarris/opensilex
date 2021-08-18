@@ -88,16 +88,9 @@ public abstract class OpenSilexModule implements OpenSilexExtension {
      * @return OpenSilex version
      */
     public String getOpenSilexVersion() {
-        return getVersionFromPom();
-    }
-    
-    
-    /**
-     * Return OpenSilex version.
-     *
-     * @return OpenSilex version
-     */
-    protected String getVersionFromPom(){
+        if(getClass().getPackage().getImplementationVersion() != null){
+            return getClass().getPackage().getImplementationVersion();
+        }
         return getMavenProperties().getProperty("revision", "");
     }
 

@@ -57,6 +57,16 @@
                 </router-link>
               </div>
             </div>
+            <div li class="nav-item">
+              <a
+                :href="versionInfo.api_docs.url"
+                target="_blank"
+                class="router-link-exact-active router-link-active"
+              >
+                <i class="ik ik-link"></i>
+                <span>{{ $t("component.menu.web-api") }}</span>
+              </a>
+            </div>
           </nav>
         </div>
       </div>
@@ -69,10 +79,21 @@ import { Component } from "vue-property-decorator";
 import Vue from "vue";
 import { Menu } from "../../models/Menu";
 
+// @ts-ignore
+import { SystemService, versionInfoDTO } from "opensilex-core/index";
+// @ts-ignore
+import HttpResponse, {
+  OpenSilexResponse,
+} from "opensilex-security/HttpResponse";
 @Component
 export default class DefaultMenuComponent extends Vue {
   $route: any;
   $store: any;
+  $opensilex: any;
+
+  service: SystemService;
+
+  versionInfo: versionInfoDTO = {};
 
   get menu(): Array<Menu> {
     return this.$store.state.menu;
@@ -84,6 +105,18 @@ export default class DefaultMenuComponent extends Vue {
 
   get menuVisible(): boolean {
     return this.$store.state.menuVisible;
+  }
+
+  created() {
+    this.service = this.$opensilex.getService("opensilex.SystemService");
+    this.service
+      .getVersionInfo()
+      .then((http: HttpResponse<OpenSilexResponse<versionInfoDTO>>) => {
+        this.versionInfo = http.response.result;
+      })
+      .catch((error) => {
+        this.$opensilex.errorHandler(error);
+      });
   }
 
   toggleMenu(): void {

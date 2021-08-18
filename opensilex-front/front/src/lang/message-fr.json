@@ -201,8 +201,8 @@
                 "label": "Outils",
                 "system": "Système",
                 "packages": "Librairies"
-            }
-
+            },
+            "web-api" : "API du Webservice"
         },
         "login": {
             "input": {

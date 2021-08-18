@@ -107,9 +107,6 @@ export default class SystemView extends Vue {
   $opensilex: any;
   $store: any; 
   service: SystemService;
-
-  githubAccount
-
   versionInfo: versionInfoDTO = {};
 
   modulesFields: any[] = [

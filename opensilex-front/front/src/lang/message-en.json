@@ -200,7 +200,8 @@
                 "label": "Tools",
                 "system": "System",
                 "packages": "Packages"
-            }
+            },
+            "web-api" : "Webservice API"
         },
         "login": {
             "input": {
