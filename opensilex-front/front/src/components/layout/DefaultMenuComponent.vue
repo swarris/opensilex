@@ -63,8 +63,8 @@
                 target="_blank"
                 class="router-link-exact-active router-link-active"
               >
-                <i class="ik ik-link"></i>
-                <span>{{ $t("component.menu.web-api") }}</span>
+                <b-img fluid width="25" src="https://cdn.svgporn.com/logos/swagger.svg" /> &nbsp;&nbsp;&nbsp;
+                <span class="ml-1">{{ $t("component.menu.web-api") }}</span>
               </a>
             </div>
           </nav>

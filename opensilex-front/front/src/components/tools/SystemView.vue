@@ -27,7 +27,6 @@
                 <opensilex-UriView
                   title="SystemView.api-docs"
                   :uri="versionInfo.api_docs.url"
-                  :value="versionInfo.api_docs.description"
                   target="_blank"
                 ></opensilex-UriView>
 
@@ -157,7 +156,7 @@ en:
     version: Version
     project: Project homepage 
     contact: Contact e-mail
-    api-docs: API documentation link
+    api-docs: Webservice documentation
     git-commit : Last commit Id
     git-commit-copy : Copy last commit Id
     description : Description
@@ -174,7 +173,7 @@ fr:
     version: Version
     project: Page du projet
     contact: E-mail du contact
-    api-docs: URL Documentation API
+    api-docs: Documentation Webservice
     git-commit: Dernier id commit
     git-commit-copy: Copier le dernier id commit
     description: Description

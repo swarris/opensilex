@@ -8,14 +8,14 @@
           href="#"
           @click.prevent="$emit('click', uri)"
           :title="uri"
-          class="uri uri-copy-string"
+          :class="'uri ' + (underlineTextForCopy ? 'uri-display-none':'uri-copy-string')"
         >
           <span>{{ value }}</span>
           &nbsp;
           <button
             v-if="allowCopy"
             v-on:click.prevent.stop="copyURI(copyValue|| value)"
-            class="uri-copy uri-copy-string"
+            :class="'uri-copy  ' + (underlineTextForCopy ? 'uri-display-none':'uri-copy-string')"
             :title="$t(copyTextMessage)"
           >
             <opensilex-Icon icon="ik#ik-copy" />
@@ -58,6 +58,11 @@ export default class UriLink extends Vue {
     default: false,
   })
   allowCopy: boolean;
+
+  @Prop({
+    default: false,
+  })
+  underlineTextForCopy: boolean;
 
   @Prop()
   copyValue: string;
@@ -103,8 +108,8 @@ export default class UriLink extends Vue {
   white-space: nowrap;
 }
 
+
 .uri .uri-copy {
-  display: none;
   border: 1px solid #d8dde5;
   border-radius: 5px;
   color: #212121;
@@ -114,6 +119,16 @@ export default class UriLink extends Vue {
   top: -3px;
 }
 
+.uri .uri-display-none{
+  display: none;
+}
+.uri-display-none:hover {
+  color: #212121  !important;
+  text-decoration: underline !important;;
+}
+a span{
+  color: black;
+}
 .uri:hover .uri-copy,
 .uri:focus .uri-copy,
 .uri:hover .uri-copy {
