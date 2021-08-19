@@ -3,8 +3,7 @@
     <div v-if="allowCopy" class="static-field">
       <span class="field-view-title">{{ $t(label) }}</span>
       <span>
-        <a
-          v-if="!computeURL && !to"
+        <a 
           href="#"
           @click.prevent="$emit('click', uri)"
           :title="uri"

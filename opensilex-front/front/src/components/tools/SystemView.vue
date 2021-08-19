@@ -39,6 +39,10 @@
                   target="_blank"
                 >
                 </opensilex-StringView>
+                <opensilex-StringView
+                  label="SystemView.copyright"
+                  value=" © 2021 INRAE – Tous droits réservés "
+                ></opensilex-StringView> 
               </b-col>
               <b-col>
                 <opensilex-TextView
@@ -95,17 +99,12 @@
 import { Component } from "vue-property-decorator";
 import Vue from "vue";
 // @ts-ignore
-import { SystemService, versionInfoDTO } from "opensilex-core/index";
-// @ts-ignore
-import HttpResponse, {
-  OpenSilexResponse,
-} from "opensilex-security/HttpResponse";
+import {   versionInfoDTO } from "opensilex-core/index"; 
 
 @Component
 export default class SystemView extends Vue {
   $opensilex: any;
-  $store: any; 
-  service: SystemService;
+  $store: any;  
   versionInfo: versionInfoDTO = {};
 
   modulesFields: any[] = [
@@ -122,20 +121,11 @@ export default class SystemView extends Vue {
   ];
 
   created() {
-    this.service = this.$opensilex.getService("opensilex.SystemService");
-    this.service
-      .getVersionInfo()
-      .then((http: HttpResponse<OpenSilexResponse<versionInfoDTO>>) => {
-        this.versionInfo = http.response.result;
-      })
-      .catch((error) => {
-        this.$opensilex.errorHandler(error);
-      });
+     this.versionInfo = this.$opensilex.versionInfo;
   }
 
-  getVersion() {
-    
-    if ("BUILD-SNAPSHOT" == this.versionInfo.version) {
+  getVersion() { 
+    if (this.versionInfo.version != undefined && this.versionInfo.version.includes("SNAPSHOT")) {
       return this.versionInfo.github_page + "/releases";
     }
     return this.versionInfo.github_page + "/releases/tag/" + this.versionInfo.version;
@@ -156,13 +146,14 @@ en:
     version: Version
     project: Project homepage 
     contact: Contact e-mail
-    api-docs: Webservice documentation
+    api-docs: Web API
     git-commit : Last commit Id
     git-commit-copy : Copy last commit Id
     description : Description
     title-description : Informations about information system
     license: Software license
     loaded-modules: Loaded modules
+    copyright : Copyright
     name : Name
     
 fr:
@@ -173,12 +164,13 @@ fr:
     version: Version
     project: Page du projet
     contact: E-mail du contact
-    api-docs: Documentation Webservice
+    api-docs: API Web
     git-commit: Dernier id commit
     git-commit-copy: Copier le dernier id commit
     description: Description
     title-description: Informations à propos du système d'information
     license: Licence logicielle
     loaded-modules: Modules chargés
+    copyright : Copyright
     name: Nom
 </i18n>

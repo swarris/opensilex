@@ -59,11 +59,17 @@
             </div>
             <div li class="nav-item">
               <a
+                v-if="versionInfo.api_docs.url != undefined"
                 :href="versionInfo.api_docs.url"
                 target="_blank"
                 class="router-link-exact-active router-link-active"
               >
-                <b-img fluid width="25" src="https://cdn.svgporn.com/logos/swagger.svg" /> &nbsp;&nbsp;&nbsp;
+                <b-img
+                  fluid
+                  width="25"
+                  src="https://cdn.svgporn.com/logos/swagger.svg"
+                />
+                &nbsp;&nbsp;&nbsp;
                 <span class="ml-1">{{ $t("component.menu.web-api") }}</span>
               </a>
             </div>
@@ -80,20 +86,15 @@ import Vue from "vue";
 import { Menu } from "../../models/Menu";
 
 // @ts-ignore
-import { SystemService, versionInfoDTO } from "opensilex-core/index";
-// @ts-ignore
-import HttpResponse, {
-  OpenSilexResponse,
-} from "opensilex-security/HttpResponse";
+import { versionInfoDTO } from "opensilex-core/index";
 @Component
 export default class DefaultMenuComponent extends Vue {
   $route: any;
   $store: any;
   $opensilex: any;
+  $t : any;
 
-  service: SystemService;
-
-  versionInfo: versionInfoDTO = {};
+  versionInfo: versionInfoDTO;
 
   get menu(): Array<Menu> {
     return this.$store.state.menu;
@@ -108,15 +109,7 @@ export default class DefaultMenuComponent extends Vue {
   }
 
   created() {
-    this.service = this.$opensilex.getService("opensilex.SystemService");
-    this.service
-      .getVersionInfo()
-      .then((http: HttpResponse<OpenSilexResponse<versionInfoDTO>>) => {
-        this.versionInfo = http.response.result;
-      })
-      .catch((error) => {
-        this.$opensilex.errorHandler(error);
-      });
+      this.versionInfo = this.$opensilex.versionInfo;
   }
 
   toggleMenu(): void {

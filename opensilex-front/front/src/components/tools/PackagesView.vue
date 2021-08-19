@@ -77,59 +77,43 @@
 import { Component } from "vue-property-decorator";
 import Vue from "vue";
 // @ts-ignore
-import { SystemService, VersionInfoDTO } from "opensilex-core/index";
-// @ts-ignore
-import HttpResponse, {
-  OpenSilexResponse,
-} from "opensilex-security/HttpResponse";
+import { VersionInfoDTO } from "opensilex-core/index"; 
 
 @Component
 export default class PackagesView extends Vue {
-  $opensilex: any;
-  $store: any;
-
-  service: SystemService;
-  
+  $opensilex: any; 
   versionInfo: VersionInfoDTO = {};
 
   getVersion() {
-    if ("BUILD-SNAPSHOT" == this.versionInfo.version) {
-      return "";
+    if (this.versionInfo.version != undefined && this.versionInfo.version.includes("SNAPSHOT")) {
+      return "/releases";
     }
-    return "tag/" + this.versionInfo.version;
+    return "/tag/" + this.versionInfo.version;
   }
 
   get pythonVersion() {
     return (
-      "https://github.com/OpenSILEX/opensilexClientToolsPython/releases/" +
+      "https://github.com/OpenSILEX/opensilexClientToolsPython" +
       this.getVersion()
     );
   }
 
   get rVersion() {
     return (
-      "https://github.com/OpenSILEX/opensilexClientToolsR/releases/" +
+      "https://github.com/OpenSILEX/opensilexClientToolsR/" +
       this.getVersion()
     );
   }
 
   get dartVersion() {
     return (
-      "https://github.com/OpenSILEX/opensilexClientToolsDart/releases/" +
+      "https://github.com/OpenSILEX/opensilexClientToolsDart/" +
       this.getVersion()
     );
   }
 
-  created() {
-    this.service = this.$opensilex.getService("opensilex.SystemService");
-    this.service
-      .getVersionInfo()
-      .then((http: HttpResponse<OpenSilexResponse<VersionInfoDTO>>) => {
-        this.versionInfo = http.response.result;
-      })
-      .catch((error) => {
-        this.$opensilex.errorHandler(error);
-      });
+  created() { 
+     this.versionInfo = this.$opensilex.versionInfo;
   }
 }
 </script>

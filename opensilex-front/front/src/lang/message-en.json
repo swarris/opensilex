@@ -201,7 +201,7 @@
                 "system": "System",
                 "packages": "Packages"
             },
-            "web-api" : "Webservice API"
+            "web-api" : "Web API"
         },
         "login": {
             "input": {
@@ -216,17 +216,18 @@
             "button": {
                 "login": "Login"
             },
-            "copyright": {
-                "1": "Copyright © 2019 - 2020 INRA All Rights Reserved",
-                "2": "PHIS - Phenotyping Hybrid Information System",
-                "3": "Version {version} released on {date}"
+            "copyright": { 
+                "1": "PHIS - Phenotyping Hybrid Information System",
+                "2": "Version {version}",
+                "3": "Based on OpenSILEX version {version}",
+                "4": "Copyright ©2021 INRAE"
             },
             "errors": {
                 "invalid-credentials": "Invalid credentials"
             }
         },
         "footer": {
-            "copyright": "Copyright © 2019 - 2020 INRA All Rights Reserved. PHIS {version} released on {date}"
+            "copyright": "Copyright © 2021 INRAE All Rights Reserved. PHIS {version}"
         },
         "user": {
             "description": "Manage and configure users",
