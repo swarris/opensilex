@@ -100,18 +100,7 @@ export default class TreeViewAsync extends Vue {
   copy = copy;
 
   selectItem(node: any) {
-    if (node.data != null) {
-      console.debug("current", node);
-      console.debug("isLeaf", node.isLeaf);
-      if (node.isLeaf) {
-        // let root = this.getNodeParent(node);
-        // this.selectElement(root.data.uri);
-      } else {
-        // if not selected select all others 
-         this.selectElement(node.data.uri);
-        this.selectAllChildren(node);
-      }
-        
+    if (node.data != null) { 
       this.$emit("select", node);
     }
   }
@@ -359,7 +348,7 @@ export default class TreeViewAsync extends Vue {
       !("child_count" in node.data) ||
       (node.children.length == 0 && node.data.child_count > 0)
     ) {
-      this.loadMoreChildren(node,true);
+      this.loadMoreChildren(node,undefined);
     }
     this.$emit("toggle", node);
   }
@@ -369,7 +358,6 @@ export default class TreeViewAsync extends Vue {
     if (this.multiSelect) {
       r = this.multiSelect.indexOf(uri) >= 0;
     }
-    // console.debug("getSelection", r, uri);
     return r;
   }
 

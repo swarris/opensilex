@@ -52,7 +52,6 @@
 
     <div v-if="isDetailsTab">
       <opensilex-ScientificObjectDetailProperties
-        :key="selected"
         :globalView="globalView"
         :selected="selected"
         :objectByContext="objectByContext"

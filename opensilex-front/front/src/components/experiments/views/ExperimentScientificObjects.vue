@@ -133,7 +133,7 @@
                   >
                 </b-form-checkbox>
               </b-col>
-              <b-col class="ml-2 mt-1"> {{!selectAll ? $t('component.common.select-all') : $t('component.common.unselect-all')}}</b-col>
+              <b-col class="ml-1 mt-1"> {{!selectAll ? $t('component.common.select-all') : $t('component.common.unselect-all')}}</b-col>
             </b-row>
           </div>
 
@@ -204,7 +204,7 @@
               <opensilex-Icon icon="ik#ik-target" class="title-icon" />
               <slot name="name">&nbsp;{{ $t(selected.name) }}</slot>
             </h5>
-        <opensilex-ScientificObjectDetail  :selected="selected" :tabs="detailTabs" :experiment="uri"/>
+        <opensilex-ScientificObjectDetail :key="selected.name" :selected="selected" :tabs="detailTabs" :experiment="uri"/>
         </b-card>
       </div>
     </div>
