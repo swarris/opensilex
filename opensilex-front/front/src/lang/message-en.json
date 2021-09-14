@@ -26,6 +26,7 @@
             "delete": "delete",
             "cancel": "cancel",
             "creator": "Creator",
+            "edit": "edit",
             "name": "Name",
             "term":"Term",
             "comment": "Comment",
@@ -65,6 +66,8 @@
             "year":"Year",
             "geometry": "Geospatial coordinates",
             "geometry-help": "Geospatial coordinates in WKT format",
+            "select-all" : "Select all",
+            "unselect-all" : "Unselect all",
             "errors": {
                 "error-title": "Error",
                 "constraint-error": "A data validation error occurred, please check the validity of the submitted fields.",
@@ -72,7 +75,8 @@
                 "server-error": "An error occurred at server level, please contact your local support..",
                 "unexpected-error": "An unexpected error occurred, please contact your local support.",
                 "unauthorized-error": "Your session expired, please login again.",
-                "form-step-errors": "Some field are required in order to go to the next step"
+                "form-step-errors": "Some field are required in order to go to the next step",
+                "uri-already-exists": "This URI already exists."
             },
             "form-wizard": {
                 "external-ontologies": "(Optional) External ontologies references",
@@ -186,6 +190,7 @@
                 "factors": "Factors",
                 "germplasm": "Germplasm"
             },
+            "groupVariables": "Variables Groups",
             "infrastructures": "Organizations",
             "configuration": "Administration",
             "scientificObjectTypes": "Scientific object types",

@@ -57,9 +57,6 @@ export default class ExternalReferencesDetails extends Vue {
  
   get relations() {
     this.relationsInternal = [];  
-    console.debug("Log skos relations",this.skosRelationsMap);
-    console.debug("Log skos objects",this.skosReferences);
-
     for (let [key, value] of this.skosRelationsMap) {
       this.updateRelations(key, this.skosReferences[key]);
     }
@@ -67,9 +64,11 @@ export default class ExternalReferencesDetails extends Vue {
   }
 
   updateRelations(relation: string, references: string[]) {
-    for (let index = 0; index < references.length; index++) {
-      const element = references[index];
-      this.addRelation(relation, element);
+    if(references != undefined){
+      for (let index = 0; index < references.length; index++) {
+        const element = references[index];
+        this.addRelation(relation, element);
+      }
     }
   }
 
