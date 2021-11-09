@@ -16,6 +16,12 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>opensilex-swagger-codegen-maven-plugin</artifactId>
+    <name>opensilex-swagger-codegen</name>
+    <packaging>maven-plugin</packaging>
+    <description>maven plugin to build modules from swagger codegen</description>
+
     
     <parent>
         <groupId>org.opensilex</groupId>
@@ -24,12 +30,6 @@
         <relativePath>../opensilex-parent/pom.xml</relativePath>
     </parent>
     
-    <groupId>org.opensilex</groupId>
-    <artifactId>opensilex-swagger-codegen-maven-plugin</artifactId>
-    <version>${revision}</version>
-    <name>opensilex-swagger-codegen</name>
-    <packaging>maven-plugin</packaging>
-    <description>maven plugin to build modules from swagger codegen</description>
     
     <prerequisites>
         <maven>3.2.5</maven>

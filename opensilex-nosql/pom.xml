@@ -51,4 +51,5 @@
             <version>${revision}</version>
         </dependency>
     </dependencies>
+    <groupId>org.opensilex</groupId>
 </project>

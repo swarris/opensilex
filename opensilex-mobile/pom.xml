@@ -26,5 +26,6 @@
         <relativePath>../opensilex-module/pom.xml</relativePath>
     </parent>
      
+    <groupId>org.opensilex</groupId>
 </project>
 

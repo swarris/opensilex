@@ -13,12 +13,9 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <groupId>org.opensilex</groupId>
     <artifactId>opensilex-front</artifactId>
     <packaging>jar</packaging>
     <name>opensilex-front</name>
-    <version>${revision}</version>
-    
     <url>https://www.opensilex.org/</url>
     
     <parent>
@@ -63,6 +60,12 @@
             <artifactId>opensilex-core</artifactId>
             <version>${revision}</version>
         </dependency>  
+	<!-- Opensilex Swagger -->
+        <dependency>
+            <groupId>org.opensilex</groupId>
+            <artifactId>opensilex-swagger-codegen-maven-plugin</artifactId>
+            <version>${revision}</version>
+        </dependency>  
         <!-- OpenSilex Core test -->
         <dependency>
             <groupId>org.opensilex</groupId>
@@ -100,14 +103,12 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
-                <version>${maven.exec.plugin.version}</version>
-            </plugin>
+                </plugin>
             <!-- Generate TypeScript library from swagger.json file -->
             <plugin>
                 <groupId>org.opensilex</groupId>
                 <artifactId>opensilex-swagger-codegen-maven-plugin</artifactId>
-                <version>${revision}</version>
-            </plugin>
+                </plugin>
             
             <!-- Allow to extends SPARQL deserializers --> 
             <plugin>

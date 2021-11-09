@@ -23,8 +23,6 @@
     <name>opensilex-brapi</name>
     
     <url>https://www.opensilex.org/</url>
-    <version>${revision}</version>
-
     <parent>
         <groupId>org.opensilex</groupId>
         <artifactId>opensilex-module</artifactId>
@@ -55,5 +53,6 @@
         </plugins>
     </build> 
    
+    <groupId>org.opensilex</groupId>
 </project>
 

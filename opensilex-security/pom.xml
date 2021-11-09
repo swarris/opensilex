@@ -77,5 +77,6 @@
             </plugin>
         </plugins>
     </build>
+    <groupId>org.opensilex</groupId>
 </project>
 

@@ -29,13 +29,11 @@
     <packaging>jar</packaging>
     <name>opensilex-dev-tools</name>
     <url>https://www.opensilex.org/</url>
-    <version>${revision}</version>
- 
     <parent>
         <groupId>org.opensilex</groupId>
-        <artifactId>opensilex</artifactId>
+        <artifactId>opensilex-parent</artifactId>
         <version>${revision}</version>
-        <relativePath>../pom.xml</relativePath>
+        <relativePath>../opensilex-parent/pom.xml</relativePath>
     </parent>
     
     <!-- Dependencies for RDF4J used to create repository in Install.java class -->
@@ -75,4 +73,5 @@
             </plugin>
         </plugins>
     </build>
+    <groupId>org.opensilex</groupId>
 </project>

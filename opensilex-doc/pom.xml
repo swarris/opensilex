@@ -9,13 +9,11 @@
     <name>opensilex-doc</name>
 
     <url>https://www.opensilex.org/</url>
-    <version>${revision}</version>
-
     <parent>
         <groupId>org.opensilex</groupId>
-        <artifactId>opensilex</artifactId>
+        <artifactId>opensilex-parent</artifactId>
         <version>${revision}</version>
-        <relativePath>../pom.xml</relativePath>
+        <relativePath>../opensilex-parent/pom.xml</relativePath>
     </parent>
 
     <build>
@@ -30,5 +28,6 @@
             </plugin>
         </plugins>
     </build>
+    <groupId>org.opensilex</groupId>
 </project>
 
