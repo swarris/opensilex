@@ -677,13 +677,11 @@
                         </execution>
                     </executions>
                 </plugin>
-                <!-- 
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>flatten-maven-plugin</artifactId>
                     <version>${flatten.maven.plugin.version}</version>
                 </plugin>
-                 -->
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>properties-maven-plugin</artifactId>
@@ -1004,7 +1002,6 @@
             </plugin>
             
             <!--Flatten pom (ie: merge with opensilex-parent) to allow single module build--> 
-            <!-- 
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>flatten-maven-plugin</artifactId>
@@ -1030,7 +1027,7 @@
                     </execution>
                 </executions>
             </plugin>
-             -->
+            
             <!-- Generate OpenSilex core feature interface --> 
             <plugin>
                 <groupId>eu.somatik.serviceloader-maven-plugin</groupId>
@@ -1054,6 +1051,7 @@
             <!-- Copy front theme files if exists -->
             <plugin>
                 <artifactId>maven-resources-plugin</artifactId>
+                <version>${maven.resources.plugin.version}</version>
                 <executions>
                     <!-- Copy Vue.js opensilex configuration into generated Jar file -->
                     <execution>
@@ -1124,6 +1122,7 @@
             <!-- site plugin -->
             <plugin>
                 <artifactId>maven-site-plugin</artifactId>
+                <version>${maven.site.plugin.version}</version>
                 <configuration>
                     <locales>en</locales>
                     <!-- see below to enable multilang doc -->
@@ -1136,6 +1135,7 @@
             <!-- front clean plugin, remove lib and types auto-generated folders -->
             <plugin>
                 <artifactId>maven-clean-plugin</artifactId>
+                <version>${maven.clean.plugin.version}</version>
                 <executions>
                     <execution>
                         <id>clean Vue front lib</id>
@@ -1541,7 +1541,6 @@
         </profile>
         
         <!-- Profile to enable in eclipse to avoid build errors -->
-        <!-- 
         <profile>
             <id>for-eclipse</id>
             <activation>
@@ -1580,7 +1579,7 @@
                 </pluginManagement>
             </build>
         </profile>
-         -->
+        
         <profile>
             <id>for-module</id>
             <properties>
