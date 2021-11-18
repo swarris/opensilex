@@ -7,6 +7,7 @@ package org.opensilex.fs.gridfs;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Path;
 import org.opensilex.fs.service.FileStorageConnection;
 import org.opensilex.service.BaseService;
@@ -50,6 +51,10 @@ public class GridFSConnection extends BaseService implements FileStorageConnecti
     public boolean exist(Path filePath) throws IOException {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
+    @Override
+    public boolean exist(URI uri) throws IOException {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
 
     @Override
     public void delete(Path filePath) throws IOException {
@@ -60,5 +65,8 @@ public class GridFSConnection extends BaseService implements FileStorageConnecti
     public Path getAbsolutePath(Path filePath) throws IOException {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
-
+    
+    public Path getAbsolutePath(URI uri) throws IOException{
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
 }

@@ -9,6 +9,7 @@ import org.opensilex.service.Service;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Path;
 
 /**
@@ -28,8 +29,11 @@ public interface FileStorageConnection extends Service {
     void createDirectories(Path directoryPath) throws IOException;
 
     boolean exist(Path filePath) throws IOException;
-
+    boolean exist(URI uri) throws IOException;
     void delete(Path filePath) throws IOException;
     
     Path getAbsolutePath(Path filePath) throws IOException;
+
+	Path getAbsolutePath(URI uri) throws IOException;
+	
 }

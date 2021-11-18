@@ -146,6 +146,10 @@ public class FileStorageService extends BaseService implements Service {
     public Path getAbsolutePath(String prefix, Path filePath) throws IOException {
         return this.getConnection(prefix).getAbsolutePath(filePath);
     }
+	
+    public Path getAbsolutePath(String prefix, URI uri) throws IOException {
+        return this.getConnection(prefix).getAbsolutePath(uri);
+	}
 
     public String readFile(String prefix, Path filePath) throws IOException {
         LOGGER.debug("READ FILE: " + filePath.toString());
@@ -209,7 +213,12 @@ public class FileStorageService extends BaseService implements Service {
     }
 
     public boolean exist(String prefix, URI fileURI) throws IOException {
-        return getConnection(prefix).exist(getFilePathFromPrefixURI(prefix, fileURI));
+    	if (fileURI.getScheme() == null || fileURI.getScheme() == "file") {
+    		return getConnection(prefix).exist(getFilePathFromPrefixURI(prefix, fileURI));
+    	}
+    	else {
+    		return getConnection(prefix).exist(fileURI);
+    	}
     }
 
     public void delete(String prefix, URI fileURI) throws IOException {
@@ -223,4 +232,6 @@ public class FileStorageService extends BaseService implements Service {
             
         }
     }
+
+
 }

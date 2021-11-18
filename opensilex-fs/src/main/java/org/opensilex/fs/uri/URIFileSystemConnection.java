@@ -80,6 +80,14 @@ public class URIFileSystemConnection extends BaseService implements FileStorageC
 	}
 
 	@Override
+	public boolean exist(URI uri) throws IOException {
+		/* Should do a HTTP GET and check for 200/404 http codes */
+		LOGGER.warn("Checking if URI exists, which is unsupported: " + uri);
+		return true;
+	}
+
+	
+	@Override
 	public void delete(Path filePath) throws IOException {
 		URI uri = pathToURI(filePath);
 		/* Should do a HTTP DELETE */
@@ -89,8 +97,14 @@ public class URIFileSystemConnection extends BaseService implements FileStorageC
 
 	@Override
 	public Path getAbsolutePath(Path filePath) throws IOException {
+		LOGGER.warn("Checking path: " + filePath);
 		URI uri = pathToURI(filePath);
 		return filePath;
+	}
+
+	public Path getAbsolutePath(URI uri) throws IOException {
+		LOGGER.warn("Checking path: " + uri);
+		return Path.of(uri.getPath());
 	}
 
 }

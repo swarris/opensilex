@@ -70,6 +70,7 @@ import org.opensilex.core.provenance.dal.ProvenanceDAO;
 import org.opensilex.core.provenance.dal.ProvenanceModel;
 import org.opensilex.core.scientificObject.dal.ScientificObjectModel;
 import org.opensilex.fs.service.FileStorageService;
+import org.opensilex.fs.uri.URIFileSystemConnection;
 import org.opensilex.nosql.exceptions.NoSQLInvalidURIException;
 import org.opensilex.nosql.exceptions.NoSQLInvalidUriListException;
 import org.opensilex.nosql.exceptions.NoSQLTooLargeSetException;
@@ -90,6 +91,8 @@ import org.opensilex.sparql.service.SPARQLService;
 import org.opensilex.sparql.utils.Ontology;
 import org.opensilex.utils.ListWithPagination;
 import org.opensilex.utils.OrderBy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -105,7 +108,8 @@ public class DataFilesAPI {
     
     public static final String DATAFILE_EXAMPLE_URI = "http://opensilex.dev/id/file/1598857852858";
     public static final String DATAFILE_EXAMPLE_TYPE = "http://www.opensilex.org/vocabulary/oeso#Image";
-    
+	private final static Logger LOGGER = LoggerFactory.getLogger(DataFilesAPI.class);
+
     @Inject
     private MongoDBService nosql;
     
@@ -214,17 +218,29 @@ public class DataFilesAPI {
             for(DataFilePathCreationDTO dto : dtoList ){            
                 DataFileModel model = dto.newModel();
                 // get the the absolute file path according to the fileStorageDirectory
-                java.nio.file.Path absoluteFilePath = fs.getAbsolutePath(FS_FILE_PREFIX, Paths.get(model.getPath()));
-
-                if (!fs.exist(FS_FILE_PREFIX, absoluteFilePath)) {
-                    return new ErrorResponse(
-                                Response.Status.BAD_REQUEST,
-                                "File not found",
-                                absoluteFilePath.toString()
-                    ).getResponse();
+                URI uri = new URI(model.getPath());
+                java.nio.file.Path absoluteFilePath;
+                if (uri.getScheme() == null || uri.getScheme() == "file") {
+                	absoluteFilePath = fs.getAbsolutePath(FS_FILE_PREFIX, Paths.get(model.getPath()));
+                    if (!fs.exist(FS_FILE_PREFIX, absoluteFilePath)) {
+                        return new ErrorResponse(
+                                    Response.Status.BAD_REQUEST,
+                                    "File not found",
+                                    absoluteFilePath.toString()
+                        ).getResponse();
+                    }
+                    model.setFilename(absoluteFilePath.getFileName().toString());
                 }
-
-                model.setFilename(absoluteFilePath.getFileName().toString());
+                else {
+                    if (!fs.exist(FS_FILE_PREFIX, uri)) {
+                        return new ErrorResponse(
+                                    Response.Status.BAD_REQUEST,
+                                    "URI not found",
+                                    uri.toString()
+                        ).getResponse();
+                    }
+                    model.setFilename(uri.toString());
+                }
                 dataList.add(model);
             }
 
@@ -233,7 +249,6 @@ public class DataFilesAPI {
             for (DataModel data : dataList){
                 createdResources.add(data.getUri());
             }          
-
             return new ObjectUriResponse(Response.Status.CREATED, createdResources).getResponse();
 
         } catch(NoSQLTooLargeSetException ex) {

@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -96,6 +97,11 @@ public class IrodsFileSystemConnection extends BaseService implements Service, F
         return this.getStorageBasePath().resolve(filePath).toAbsolutePath();
     }
 
+    public Path getAbsolutePath(URI uri) throws IOException {
+        return this.getStorageBasePath().resolve(Path.of(uri.getPath())).toAbsolutePath();
+    }
+    
+    
     @Override
     public String readFile(Path filePath) throws IOException {
         byte[] bytes = readFileAsByteArray(filePath);
@@ -200,6 +206,10 @@ public class IrodsFileSystemConnection extends BaseService implements Service, F
         } catch (Exception e) {
             return false;
         }
+    }
+    @Override
+    public boolean exist(URI uri) throws IOException {
+        return exist(Path.of(uri.getPath()));
     }
 
     private final static String IRODS_RM_CMD = "irm";

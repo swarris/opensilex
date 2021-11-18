@@ -8,6 +8,7 @@ package org.opensilex.fs.local;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -49,6 +50,11 @@ public class LocalFileSystemConnection extends BaseService implements FileStorag
     public File getAbsolutePathFile(Path path) throws IOException {
         return getAbsolutePath(path).toFile();
     }
+    
+    public Path getAbsolutePath(URI uri) throws IOException {
+        return this.basePath.resolve(Path.of(uri.getPath()));
+    }
+
 
     @Override
     public String readFile(Path filePath) throws IOException {
@@ -78,6 +84,11 @@ public class LocalFileSystemConnection extends BaseService implements FileStorag
     @Override
     public boolean exist(Path filePath) throws IOException {
         return Files.exists(getAbsolutePath(filePath));
+    }
+    
+    @Override
+    public boolean exist(URI uri) throws IOException {
+        return exist(Path.of(uri.getPath()));
     }
 
     @Override
