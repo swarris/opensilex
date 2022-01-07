@@ -220,7 +220,7 @@ public class DataFilesAPI {
                 // get the the absolute file path according to the fileStorageDirectory
                 URI uri = new URI(model.getPath());
                 java.nio.file.Path absoluteFilePath;
-                if (uri.getScheme() == null || uri.getScheme() == "file") {
+                if (uri.getScheme() == null || uri.getScheme().equals("file")) {
                 	absoluteFilePath = fs.getAbsolutePath(FS_FILE_PREFIX, Paths.get(model.getPath()));
                     if (!fs.exist(FS_FILE_PREFIX, absoluteFilePath)) {
                         return new ErrorResponse(

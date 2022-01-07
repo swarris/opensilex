@@ -196,13 +196,18 @@ public class SPARQLQueryHelper {
     public static Expr inURIFilter(Var var, Collection<URI> uris) {
         if (uris != null && !uris.isEmpty()) {
             ExprFactory exprFactory = SPARQLQueryHelper.getExprFactory();
-
-            // get ressource with relation specified in the given list
-            return exprFactory.in(var, uris.stream()
-                    .map(uri -> {
-                        return NodeFactory.createURI(SPARQLDeserializers.getExpandedURI(uri.toString()));
+            // get resource with relation specified in the given list
+            Expr expr = exprFactory.in(var, uris.stream()
+                    .map(uri -> { 
+                    	if (uri != null) {
+                    		return NodeFactory.createURI(SPARQLDeserializers.getExpandedURI(uri.toString()));
+                    	}	
+                    	else {
+                    		return NodeFactory.createURI("");
+                    	}
                     })
-                    .toArray());
+                    .toArray()); 
+            return expr;
         }
 
         return null;
