@@ -10,8 +10,12 @@ import org.opensilex.service.ServiceConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.opensilex.service.BaseService;
+import org.opensilex.service.ServiceDefaultDefinition;
+import org.opensilex.service.Service;
 
-public class URIFileSystemConnection extends BaseService implements FileStorageConnection {
+
+@ServiceDefaultDefinition(config = URIFileSystemConfig.class)
+public class URIFileSystemConnection extends BaseService implements Service, FileStorageConnection {
 
 	private final static Logger LOGGER = LoggerFactory.getLogger(URIFileSystemConnection.class);
 	
@@ -19,8 +23,9 @@ public class URIFileSystemConnection extends BaseService implements FileStorageC
 		super(null);
 	}
 	
-	protected URIFileSystemConnection(ServiceConfig config) {
+	protected URIFileSystemConnection(URIFileSystemConfig config) {
 		super(config);
+		LOGGER.error(config.serviceAccount());
 	}
 
 	private URI pathToURI(Path filePath) {
@@ -38,6 +43,7 @@ public class URIFileSystemConnection extends BaseService implements FileStorageC
 	@Override
 	public byte[] readFileAsByteArray(Path filePath) throws IOException {
 		/* Should do a HTTP GET */
+		// use config.serviceAccount() to log in
 		URI uri = pathToURI(filePath);
 		LOGGER.warn("Reading URI, which is unsupported: " + filePath);
 		return new byte[0];
