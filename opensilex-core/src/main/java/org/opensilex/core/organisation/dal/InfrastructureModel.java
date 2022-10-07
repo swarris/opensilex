@@ -6,30 +6,38 @@
 package org.opensilex.core.organisation.dal;
 
 import java.util.List;
+
+import org.apache.jena.sparql.vocabulary.FOAF;
+import org.apache.jena.vocabulary.ORG;
+import org.opensilex.core.experiment.dal.ExperimentModel;
 import org.opensilex.core.ontology.Oeso;
 import org.opensilex.security.authentication.SecurityOntology;
+import org.opensilex.security.group.dal.GroupModel;
 import org.opensilex.sparql.annotations.SPARQLProperty;
 import org.opensilex.sparql.annotations.SPARQLResource;
-import org.opensilex.sparql.model.SPARQLTreeModel;
+import org.opensilex.sparql.model.SPARQLDagModel;
 
 /**
  *
  * @author vince
  */
 @SPARQLResource(
-        ontology = Oeso.class,
-        resource = "Infrastructure",
-        graph = "set/infrastructures",
+        ontology = FOAF.class,
+        resource = "Organization",
+        graph = InfrastructureModel.GRAPH,
         prefix = "infra"
 )
-public class InfrastructureModel extends SPARQLTreeModel<InfrastructureModel> {
+public class InfrastructureModel extends SPARQLDagModel<InfrastructureModel> {
+
+    public static final String GRAPH = "organization";
 
     @SPARQLProperty(
             ontology = Oeso.class,
             property = "hasPart",
-            inverse = true
+            inverse = true,
+            ignoreUpdateIfNull = true
     )
-    protected InfrastructureModel parent;
+    protected List<InfrastructureModel> parents;
 
     @SPARQLProperty(
             ontology = Oeso.class,
@@ -40,11 +48,19 @@ public class InfrastructureModel extends SPARQLTreeModel<InfrastructureModel> {
 
     @SPARQLProperty(
             ontology = Oeso.class,
-            property = "hasFacility",
+            property = "isHosted",
             ignoreUpdateIfNull = true
     )
     private List<InfrastructureFacilityModel> facilities;
     public static final String FACILITIES_FIELD = "facilities";
+
+    @SPARQLProperty(
+            ontology = ORG.class,
+            property = "hasSite",
+            ignoreUpdateIfNull = true
+    )
+    private List<SiteModel> sites;
+    public static final String SITE_FIELD = "site";
 
     @SPARQLProperty(
             ontology = SecurityOntology.class,
@@ -52,14 +68,23 @@ public class InfrastructureModel extends SPARQLTreeModel<InfrastructureModel> {
             cascadeDelete = true,
             ignoreUpdateIfNull = true
     )
-    private List<InfrastructureTeamModel> groups;
+    private List<GroupModel> groups;
     public static final String GROUP_FIELD = "groups";
 
-    public List<InfrastructureTeamModel> getGroups() {
+    @SPARQLProperty(
+            ontology = Oeso.class,
+            property = "usesOrganization",
+            inverse = true,
+            ignoreUpdateIfNull = true
+    )
+    private List<ExperimentModel> experiments;
+    public static final String EXPERIMENT_FIELD = "experiments";
+
+    public List<GroupModel> getGroups() {
         return groups;
     }
 
-    public void setGroups(List<InfrastructureTeamModel> group) {
+    public void setGroups(List<GroupModel> group) {
         this.groups = group;
     }
 
@@ -71,4 +96,19 @@ public class InfrastructureModel extends SPARQLTreeModel<InfrastructureModel> {
         this.facilities = facilities;
     }
 
+    public List<SiteModel> getSites() {
+        return sites;
+    }
+
+    public void setSites(List<SiteModel> sites) {
+        this.sites = sites;
+    }
+
+    public List<ExperimentModel> getExperiments() {
+        return experiments;
+    }
+
+    public void setExperiments(List<ExperimentModel> experiments) {
+        this.experiments = experiments;
+    }
 }

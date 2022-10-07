@@ -68,6 +68,9 @@
             "geometry-help": "Geospatial coordinates in WKT format",
             "select-all" : "Select all",
             "unselect-all" : "Unselect all",
+            "example": "Example",
+            "loading" : "Loading...",
+            "metadata": "Metadata",
             "errors": {
                 "error-title": "Error",
                 "constraint-error": "A data validation error occurred, please check the validity of the submitted fields.",
@@ -76,7 +79,10 @@
                 "unexpected-error": "An unexpected error occurred, please contact your local support.",
                 "unauthorized-error": "Your session expired, please login again.",
                 "form-step-errors": "Some field are required in order to go to the next step",
-                "uri-already-exists": "This URI already exists."
+                "uri-already-exists": "This URI already exists.",
+                "regex": {
+                    "invalid-regex" : "Invalid regex : {__regex__}. The following characters are forbidden : {__forbidden_characters__}"
+                }
             },
             "form-wizard": {
                 "external-ontologies": "(Optional) External ontologies references",
@@ -137,7 +143,11 @@
                 }
             },
             "addDocument": "Add document",
-            "warningInstruction" : "Experimental feature"
+            "warningInstruction" : "Experimental feature",
+            "organization": {
+                "site": "Site",
+                "sites": "Sites"
+            }
         },
         "copyToClipboard": {
             "copyUri": "Copy URI to clipboard",
@@ -153,6 +163,12 @@
             "user": {
                 "admin": "Admin",
                 "logout": "Logout"
+            },
+            "user-guide":"User Guide",
+            "download-user-guide": "Download User Guide",
+            "version-label": {
+                "develop": "Develop",
+                "release": "Release"
             }
         },
         "menu": {
@@ -168,8 +184,9 @@
                 "visualization":"Visualization"
             },
             "experiments": "Experiments",
+            "facilities": "Facilities",
             "variables": "Variables",
-            "infrastructure": "Organization",
+            "infrastructure": "Organizations",
             "installations": "Installations",
             "projects": "Projects",
             "scientificObjects": "Scientific Objects",
@@ -198,6 +215,8 @@
             "facilitiesTypes": "Facilities types",
             "deviceTypes": "Device object types",
             "eventTypes": "Event types",
+            "factorCategoryTypes": "Factor categories",
+            "namespaces": "Namespaces",
             "scientific-organisation": "Scientific Organization",
             "devices": "Devices",
             "events" : "Events",
@@ -377,6 +396,7 @@
             "scientificSupervisors": "Scientific supervisors",
             "infrastructures": "Organizations",
             "infrastructures-help": "The list of experiment organizations",
+            "facilities": "Facilities",
             "contacts": "Contacts",
             "period": "Periode",
             "description": "Description",
@@ -469,52 +489,26 @@
                 "variables-sensors-factors": "Variables, factors and sensors"
             }
         },
+        "germplasms": {
+            "errors": {
+                "duplicateUri": "Duplicate URI: {uri}",
+                "duplicateLabel": "Duplicate label: {label}",
+                "wrongRdfType": "rdfType doesn't exist in the ontology: {rdfType}",
+                "unknownSpecies": "The given species doesn't exist in the database: {unknownSpecies}",
+                "unknownVariety": "The given variety doesn't exist in the database: {unknownVariety}",
+                "unknownAccession": "The given accession doesn't exist in the database: {unknownAccession}",
+                "missingAttribute": "Missing required field : {message}"
+            }
+        },
         "scientificObjects": {
-            "search": {
-                "selected": "Selected Scientific Objects",
-                "description": "Manage and configure scientific objects",
-                "advancedSearch": "Advanced search",
-                "propetiesConfiguration": "Properties to display",
-                "column": {
-                    "alias": "Alias",
-                    "experiments": "Experiment(s)",
-                    "germplasm": "Germplasm",
-                    "campaigns": "Campaign(s)",
-                    "type": "Type",
-                    "uri": "URI",
-                    "properties": "Properties",
-                    "actions": "Actions"
-                },
-                "filter": {
-                    "label": "Search for Scientific Objects",
-                    "experiments": "Filter by Experiments",
-                    "germplasm": "Filter by Germplasm",
-                    "campains": "Filter by Campaign(s)",
-                    "types": "Filter by Type(s)",
-                    "alias": "Filter by Alias / URI",
-                    "hasExperimentModalities": "hasExperimentModalities",
-                    "hasReplication": "hasReplication",
-                    "hasSpecies": "hasSpecies",
-                    "hasVariety": "hasVariety",
-                    "hasPart": "hasPart (Alias ou URI)",
-                    "isPartOf": "isPartOf (Alias ou URI)"
-                },
-                "placeholder": {
-                    "experiments": "Please select at least one item",
-                    "germplasm": "Please select at least one item",
-                    "campains": "All Campaigns",
-                    "types": "All Types",
-                    "alias": "All Alias / URI",
-                    "hasExperimentModalities": "All attributes",
-                    "hasReplication": "All attributes",
-                    "hasSpecies": "All attributes",
-                    "hasVariety": "All attributes",
-                    "hasPart": "All Alias / URI",
-                    "isPartOf": "All Alias / URI"
+            "error" : {
+                "delete" : {
+                    "associated-data" : "The object {scientific_object} can't be deleted since there are some associated data. You must delete them first",
+                    "associated-data-files" : "The object {scientific_object} can't be deleted since there are some associated data files. You must delete them first",
+                    "used-in-experiment" :"The object {scientific_object} can't be deleted since it's involved in some experiments. You must delete the object from the experiment first",
+                    "has-child" :"The object {scientific_object} can't be deleted since it has some child. You must delete them first (It may sound cruel but it has to be)"
                 }
-            },
-            "selector-placeholder":"Search scientific objects",
-            "selector-search-no-result": "Sorry, no scientific object is matching your research."
+            }
         },
         "skos": {
             "uri": "Reference URI",
@@ -541,6 +535,30 @@
         },
         "document": {
             "nopreview": "No preview possible"
+        },
+        "organization": {
+            "exception": {
+                "siteMustHaveParent": "A site must have at least one parent organization.",
+                "siteFacilityInvalidAddress": "The site '{site}' and the facility '{facility}' must have the same address."
+            }
+        },
+        "facility": {
+            "filter-placeholder": "Search facilities..."
+        },
+        "custom-properties" : {
+            "linked-resources" : "Linked resources"
+        },
+        "ontology": {
+            "class" : {
+                "exception" : {
+                    "delete" : {
+                        "instance-exists" : "Some objects are instance of {class}. You must delete them first",
+                        "has-children" : "The class {class} has child class. You must delete them first",
+                        "has-data-properties" : "The class {class} is concerned by some data-properties. You must delete them first",
+                        "has-object-properties" : "The class {class} is concerned by some object-properties. You must delete them first"
+                    }
+                }
+            }
         }
     },
     "credential-groups": {
@@ -559,9 +577,18 @@
         "documents": "Documents",
         "annotations" : "Annotations",
         "device" : "Device",
-        "events": "Events"
+        "events": "Events",
+        "facilities": "Facilities",
+        "provenance": "Provenances",
+        "vocabulary": "Vocabulary",
+        "packages": "Packages"
     },
     "credential": {
+        "default": {
+            "access": "Menu access",
+            "modification": "Add / update",
+            "delete": "Delete"
+        },
         "experiment": {
             "modification": "Add / update experiments",
             "delete": "Delete experiments"
@@ -621,6 +648,18 @@
         "event": {
             "modification": "Add / update events",
             "delete": "Delete events"
+        },
+        "facility":  {
+            "modification": "Add / update facilities",
+            "delete": "Delete facilities"
+        },
+        "provenance": {
+            "modification": "Add / update provenances",
+            "delete": "Delete provenances"
+        },
+        "profile": {
+            "modification": "Add / update profiles",
+            "delete": "Delete profiles"
         }
     },
     "validations": {
@@ -664,6 +703,9 @@
             }
         }
     },
+    "searchfilter": {
+        "label": "Search filters"
+    },
     "datatypes": {
         "boolean": "boolean",
         "number": "integer number",
@@ -673,5 +715,14 @@
         "string": "short string",
         "longstring": "long string",
         "uri": "uri"
+    },
+    "datatype-example": {
+        "integer": "8611",
+        "decimal": "44.521",
+        "string": "Opensilex",
+        "uri": "http://opensilex.org/",
+        "date": "2022-01-01",
+        "datetime": "2022-01-01T00:00:00Z",
+        "boolean": "True or false"
     }
 }

@@ -7,16 +7,17 @@
 package org.opensilex.core.experiment.api;
 
 import org.opensilex.core.experiment.dal.ExperimentModel;
+import org.opensilex.core.experiment.factor.dal.FactorModel;
+import org.opensilex.core.organisation.dal.InfrastructureFacilityModel;
+import org.opensilex.core.organisation.dal.InfrastructureModel;
 import org.opensilex.core.project.dal.ProjectModel;
+import org.opensilex.security.group.dal.GroupModel;
+import org.opensilex.security.user.dal.UserModel;
 
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import org.opensilex.core.experiment.factor.dal.FactorModel;
-import org.opensilex.core.organisation.dal.InfrastructureModel;
-import org.opensilex.core.species.dal.SpeciesModel;
-import org.opensilex.security.group.dal.GroupModel;
-import org.opensilex.security.user.dal.UserModel;
 
 /**
  * @author Vincent MIGOT
@@ -34,15 +35,9 @@ public class ExperimentCreationDTO extends ExperimentDTO {
         model.setObjective(getObjective());
         model.setDescription(getDescription());
         model.setIsPublic(isPublic);
-        model.setVariables(variables);
 
-        List<SpeciesModel> speciesList = new ArrayList<>(species.size());
-        species.forEach((URI u) -> {
-            SpeciesModel species = new SpeciesModel();
-            species.setUri(u);
-            speciesList.add(species);
-        });
-        model.setSpecies(speciesList);
+        // No species at experiment creation
+        model.setSpecies(null);
         
         List<InfrastructureModel> infrastructuresList = new ArrayList<>(infrastructures.size());
         infrastructures.forEach((URI u) -> {
@@ -51,6 +46,14 @@ public class ExperimentCreationDTO extends ExperimentDTO {
             infrastructuresList.add(infrastructure);
         });
         model.setInfrastructures(infrastructuresList);
+
+        List<InfrastructureFacilityModel> facilityList = new ArrayList<>(facilities.size());
+        facilities.forEach((facilityUri) -> {
+            InfrastructureFacilityModel facilityModel = new InfrastructureFacilityModel();
+            facilityModel.setUri(facilityUri);
+            facilityList.add(facilityModel);
+        });
+        model.setFacilities(facilityList);
 
         List<ProjectModel> projectList = new ArrayList<>(projects.size());
         projects.forEach((URI u) -> {

@@ -39,12 +39,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import org.opensilex.core.event.dal.EventDAO;
 import org.opensilex.core.event.dal.EventModel;
@@ -72,9 +67,9 @@ public class AreaAPI {
     public static final String CREDENTIAL_AREA_GROUP_LABEL_KEY = "credential-groups.area";
 
     public static final String CREDENTIAL_AREA_MODIFICATION_ID = "area-modification";
-    public static final String CREDENTIAL_AREA_MODIFICATION_LABEL_KEY = "credential.area.modification";
+    public static final String CREDENTIAL_AREA_MODIFICATION_LABEL_KEY = "credential.default.modification";
 
-    public static final String CREDENTIAL_AREA_DELETE_LABEL_KEY = "credential.area.delete";
+    public static final String CREDENTIAL_AREA_DELETE_LABEL_KEY = "credential.default.delete";
     public static final String INVALID_GEOMETRY = "Invalid geometry (longitude must be between -180 and 180 and latitude must be between -90 and 90, no self-intersection, ...)";
     private static final String CREDENTIAL_AREA_DELETE_ID = "area-delete";
 
@@ -334,8 +329,10 @@ public class AreaAPI {
             }
 
             // Search Event by URI values  List
-            EventDAO eventDAO = new EventDAO(sparql, nosql);
-            ListWithPagination<EventModel> search = eventDAO.search(temporalAreasUris,
+            EventDAO<EventModel> eventDAO = new EventDAO<>(sparql, nosql);
+            ListWithPagination<EventModel> search = eventDAO.search(
+                    null,
+                    temporalAreasUris,
                     null,
                     null,
                     start != null ? OffsetDateTime.parse(start) : null,

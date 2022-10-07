@@ -5,7 +5,6 @@
     :selected.sync="provenancesURI"
     :multiple="multiple"
     :optionsLoadingMethod="loadProvenances"
-    :conversionMethod="provenancesToSelectNode"
     :placeholder="
       multiple
         ? 'component.data.form.selector.placeholder-multiple'
@@ -74,11 +73,6 @@ export default class DataProvenanceSelector extends Vue {
   })
   multiple;
 
-  @Prop({
-    default: true,
-  })
-  showURI;
-
   @Prop()
   viewHandler: Function;
 
@@ -89,13 +83,6 @@ export default class DataProvenanceSelector extends Vue {
 
   refresh() {
     this.selectForm.refresh();
-  }
-
-  provenancesToSelectNode(dto: ProvenanceGetDTO) {
-    return {
-      id: dto.uri,
-      label: dto.name,
-    };
   }
   select(value) {
     this.$emit("select", value);
@@ -109,7 +96,7 @@ export default class DataProvenanceSelector extends Vue {
 
     return this.$opensilex
       .getService("opensilex.DataService")
-      .getUsedProvenances(this.experiments, this.targets, this.variables, this.devices)
+      .getUsedProvenancesByTargets(this.experiments, this.variables, this.devices, this.targets)
       .then(http => {
         return http.response.result;
       });

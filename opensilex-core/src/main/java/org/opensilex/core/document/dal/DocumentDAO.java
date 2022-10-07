@@ -6,45 +6,45 @@
 //******************************************************************************
 package org.opensilex.core.document.dal;
 
+import org.apache.commons.lang3.StringUtils;
+import org.apache.jena.arq.querybuilder.AskBuilder;
+import org.apache.jena.arq.querybuilder.SelectBuilder;
+import org.apache.jena.graph.Node;
+import org.apache.jena.graph.NodeFactory;
+import org.apache.jena.graph.Triple;
+import org.apache.jena.rdf.model.Property;
+import org.apache.jena.sparql.core.Var;
+import org.apache.jena.sparql.expr.Expr;
+import org.apache.jena.sparql.syntax.ElementFilter;
+import org.apache.jena.sparql.syntax.ElementGroup;
+import org.apache.jena.sparql.syntax.ElementOptional;
+import org.apache.jena.vocabulary.DCTerms;
+import org.apache.jena.vocabulary.OA;
+import org.opensilex.core.experiment.dal.ExperimentDAO;
+import org.opensilex.core.experiment.dal.ExperimentModel;
+import org.opensilex.core.ontology.Oeso;
+import org.opensilex.core.scientificObject.dal.ScientificObjectModel;
+import org.opensilex.fs.service.FileStorageService;
+import org.opensilex.nosql.mongodb.MongoDBService;
+import org.opensilex.security.authentication.NotFoundURIException;
+import org.opensilex.security.user.dal.UserModel;
+import org.opensilex.server.exceptions.BadRequestException;
+import org.opensilex.sparql.deserializer.SPARQLDeserializers;
+import org.opensilex.sparql.exceptions.SPARQLException;
+import org.opensilex.sparql.service.SPARQLQueryHelper;
+import org.opensilex.sparql.service.SPARQLService;
+import org.opensilex.sparql.utils.Ontology;
+import org.opensilex.utils.ListWithPagination;
+import org.opensilex.utils.OrderBy;
+
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.NoSuchFileException;
 import java.util.List;
 
-import org.apache.jena.atlas.io.IO;
-import org.opensilex.core.ontology.Oeso;
-import org.apache.jena.vocabulary.OA;
-import org.opensilex.security.user.dal.UserModel;
-import org.opensilex.core.experiment.dal.ExperimentDAO;
-import org.opensilex.core.experiment.dal.ExperimentModel;
-import org.opensilex.core.scientificObject.dal.ScientificObjectModel;
-import org.apache.jena.arq.querybuilder.SelectBuilder;
-import org.apache.jena.sparql.expr.Expr;
-import org.apache.jena.arq.querybuilder.AskBuilder;
-import org.apache.jena.rdf.model.Property;
-import org.opensilex.sparql.deserializer.SPARQLDeserializers;
-import org.opensilex.sparql.service.SPARQLQueryHelper;
-import org.opensilex.sparql.service.SPARQLService;
-import org.opensilex.utils.OrderBy;
-import org.opensilex.utils.ListWithPagination;
-import java.io.File;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import org.opensilex.fs.service.FileStorageService;
-import org.apache.jena.graph.NodeFactory;
 import static org.opensilex.sparql.service.SPARQLQueryHelper.makeVar;
-import org.apache.jena.graph.Node;
-import org.apache.jena.graph.Triple;
-import org.apache.jena.vocabulary.DCTerms;
-import org.apache.jena.sparql.core.Var;
-import org.apache.jena.sparql.syntax.ElementFilter;
-import org.apache.jena.sparql.syntax.ElementGroup;
-import org.opensilex.fs.local.LocalFileSystemConnection;
-import org.opensilex.security.authentication.NotFoundURIException;
-import org.apache.commons.lang3.StringUtils;
-import org.opensilex.sparql.exceptions.SPARQLException;
-import org.opensilex.sparql.utils.Ontology;
 
 
 /**
@@ -53,18 +53,42 @@ import org.opensilex.sparql.utils.Ontology;
 public class DocumentDAO {
 
     protected final SPARQLService sparql;
+    protected final MongoDBService nosql;
     protected final FileStorageService fs;
 
     public final static String FS_DOCUMENT_PREFIX = "documents";
 
-    public DocumentDAO(SPARQLService sparql, FileStorageService fs) {
+    public DocumentDAO(SPARQLService sparql, MongoDBService nosql, FileStorageService fs) {
         this.sparql = sparql;
+        this.nosql = nosql;
         this.fs = fs;
     }
 
+    /**
+     * Creates a document, either with a file or from a source URL if the `file` parameter is null.
+     *
+     * @param instance The document instance.
+     * @param file The file to associate with the document. If null, a document with a source will be created.
+     * @return The new document
+     * @throws Exception
+     */
     public DocumentModel create(DocumentModel instance, File file) throws Exception {
+        if (file == null) {
+            return createWithSource(instance);
+        }
+        return createWithFile(instance, file);
+    }
 
-        if(file.length() == 0){
+    /**
+     * Creates a document with a file.
+     *
+     * @param instance
+     * @param file
+     * @return
+     * @throws Exception If the file is empty.
+     */
+    public DocumentModel createWithFile(DocumentModel instance, File file) throws Exception {
+        if (file.length() == 0) {
             throw new IOException(instance.getUri()+ " : empty document "+file.getPath());
         }
 
@@ -76,6 +100,23 @@ public class DocumentDAO {
         }catch (IOException e){
             sparql.rollbackTransaction(e);
         }
+
+        return instance;
+    }
+
+    /**
+     * Creates a document with a source URL. The property `source` should not be null.
+     *
+     * @param instance
+     * @return
+     * @throws Exception If the property `source` of the document is null.
+     */
+    public DocumentModel createWithSource(DocumentModel instance) throws Exception {
+        if (instance.getSource() == null) {
+            throw new BadRequestException("Source cannot be null");
+        }
+
+        sparql.create(instance);
 
         return instance;
     }
@@ -119,6 +160,24 @@ public class DocumentDAO {
         );
     }
 
+    /**
+     * Search a document with several optional parameters
+     *
+     * @param user
+     * @param type
+     * @param title
+     * @param date
+     * @param targets
+     * @param authors
+     * @param subject Filters by keyword.
+     * @param multiple Filters by title OR keyword. Useful for a quick search.
+     * @param deprecated
+     * @param orderByList
+     * @param page
+     * @param pageSize
+     * @return
+     * @throws Exception
+     */
     public ListWithPagination<DocumentModel> search(UserModel user, URI type, String title, String date, URI targets, String authors, String subject, String multiple, String deprecated, List<OrderBy> orderByList, int page, int pageSize) throws Exception {
         
         return sparql.searchWithPagination(
@@ -134,8 +193,15 @@ public class DocumentDAO {
                 appendDateFilter(select, date);
                 appendTargetsFilter(multipleGraphGroupElem, targets);
                 appendAuthorsFilter(multipleGraphGroupElem, authors);
-                appendSubjectsListFilter(multipleGraphGroupElem, subject);
-                appendMultipleFilter(select, multiple);
+                // If either the subject or the "multiple" (ie. title or subject) fields is present, then the "subject"
+                // clause must be added in the query (because it is not present by default)
+                if (StringUtils.isNotEmpty(subject) || StringUtils.isNotEmpty(multiple)) {
+                    // Appends the subject clause with its triple
+                    appendSubjectsListClause(multipleGraphGroupElem);
+                    // Appends the subject and/or multiple filters
+                    appendSubjectsListFilter(multipleGraphGroupElem, subject);
+                    appendMultipleFilter(select, multiple);
+                }
                 appendDeprecatedFilter(select, deprecated);
             },
             orderByList,
@@ -144,7 +210,17 @@ public class DocumentDAO {
         );
     }
 
-    private void appendMultipleFilter(SelectBuilder select, String multiple){
+    /**
+     * Appends the following filter :
+     *
+     * <pre>
+     * FILTER ( regex(?subject, "test", "i") || regex(?title, "test", "i") )
+     * </pre>
+     *
+     * @param select
+     * @param multiple
+     */
+    private void appendMultipleFilter(SelectBuilder select, String multiple) {
         if (!StringUtils.isEmpty(multiple)) {
             select.addFilter(SPARQLQueryHelper.or(
                     SPARQLQueryHelper.regexFilter(DocumentModel.SUBJECT_FIELD, multiple),
@@ -192,16 +268,38 @@ public class DocumentDAO {
         }
     }
 
-    private void appendSubjectsListFilter(ElementGroup subjectGraphGroupElem, String subject) throws Exception {
+    /**
+     * Appends the following clause to the elementGroup :
+     *
+     * <pre>
+     * OPTIONAL {
+     *    ?uri dc:subject ?subject
+     * }
+     * </pre>
+     *
+     * @param elementGroup
+     */
+    private void appendSubjectsListClause(ElementGroup elementGroup) {
+        Var uriVar = SPARQLQueryHelper.makeVar(DocumentModel.URI_FIELD);
+        Var subjectVar = SPARQLQueryHelper.makeVar(DocumentModel.SUBJECT_FIELD);
+
+        ElementGroup subjectTripleGroup = new ElementGroup();
+        subjectTripleGroup.addTriplePattern(new Triple(uriVar, DCTerms.subject.asNode(), subjectVar));
+        elementGroup.addElement(new ElementOptional(subjectTripleGroup));
+    }
+
+    /**
+     * Appends the following filter to the element group :
+     *
+     * <pre>
+     * FILTER regex(?subject, "test", "i")
+     * </pre>
+     *
+     * @param subjectGraphGroupElem
+     * @param subject
+     */
+    private void appendSubjectsListFilter(ElementGroup subjectGraphGroupElem, String subject) {
         if (!StringUtils.isEmpty(subject)) {
-
-            Var uriVar = SPARQLQueryHelper.makeVar(DocumentModel.URI_FIELD);
-            Var subjectVar = SPARQLQueryHelper.makeVar(DocumentModel.SUBJECT_FIELD);
-
-            Triple docSubjectTriple = new Triple(uriVar, DCTerms.subject.asNode(), subjectVar);
-  
-            subjectGraphGroupElem.addTriplePattern(docSubjectTriple);
-
             Expr subjectEqExpr = SPARQLQueryHelper.regexFilter(DocumentModel.SUBJECT_FIELD, subject);
             subjectGraphGroupElem.addElementFilter(new ElementFilter(subjectEqExpr));
         }
@@ -251,7 +349,7 @@ public class DocumentDAO {
                 select.addWhere(makeVar(ExperimentModel.URI_FIELD), OA.hasTarget.asNode(), SPARQLDeserializers.nodeURI(documentURI));
             });
 
-            ExperimentDAO xpDAO = new ExperimentDAO(sparql);
+            ExperimentDAO xpDAO = new ExperimentDAO(sparql, nosql);
             for (URI xpUri : xpUris) {
                 try {
                     xpDAO.validateExperimentAccess(xpUri, user);
@@ -266,7 +364,7 @@ public class DocumentDAO {
                 select.addWhere(makeVar(ScientificObjectModel.URI_FIELD), OA.hasTarget.asNode(), SPARQLDeserializers.nodeURI(documentURI));
             });
 
-            ExperimentDAO xpsoDAO = new ExperimentDAO(sparql);
+            ExperimentDAO xpsoDAO = new ExperimentDAO(sparql, nosql);
             for (URI soUri : soUris) {
                 try {
                     xpsoDAO.validateExperimentAccess(soUri, user);

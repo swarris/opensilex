@@ -7,7 +7,16 @@
         @hide="requiredField = false"
         @show="requiredField = true"
     >
-        <template v-slot:modal-ok>{{ $t("component.common.close") }}</template>
+
+        <template v-slot:modal-footer>
+      <button
+        type="button"
+        class="btn greenThemeColor"
+        v-on:click="hide(false)"
+      >{{ $t('component.common.close') }}</button>
+        </template>
+
+        <!-- <template v-slot:modal-ok>{{ $t("component.common.close") }}</template> -->
         <template v-slot:modal-title>{{ $t("ScientificObjectCSVTemplateGenerator.title") }}</template>
 
         <div>
@@ -29,7 +38,7 @@
                     </b-col>
                 </b-row>
 
-                <b-button @click="csvExport" variant="outline-primary">
+                <b-button @click="csvExport" class="greenThemeColor">
                     {{ $t("OntologyCsvImporter.downloadTemplate") }}
                 </b-button>
             </ValidationObserver>
@@ -40,6 +49,7 @@
 <script lang="ts">
 import {Component, Prop, Ref} from "vue-property-decorator";
 import Vue from "vue";
+import {VueRDFTypePropertyDTO} from "../../../../lib";
 
 @Component
 export default class GenerateEventTemplate extends Vue {
@@ -73,6 +83,10 @@ export default class GenerateEventTemplate extends Vue {
 
     show() {
         this.soModalRef.show();
+    }
+
+    hide() {
+        this.soModalRef.hide();
     }
 
     validateTemplate() {
@@ -126,21 +140,23 @@ export default class GenerateEventTemplate extends Vue {
         for (let type of this.types) {
             let typePromise = ontoService.getRDFTypeProperties(type, this.$opensilex.Oeev.EVENT_TYPE_URI)
                 .then(http => {
-                    let properties = {};
-                    for (let dataProp of http.response.result.data_properties) {
-                        let propURI = dataProp.property;
-                        properties[propURI] = dataProp;
-                    }
 
-                    for (let objProp of http.response.result.object_properties) {
-                        let propURI = objProp.property;
-                        properties[propURI] = objProp;
-                    }
-
-                    return {
+                    let result = {
                         uri: type,
-                        properties: properties,
-                    };
+                        dataProperties: new Map<string, VueRDFTypePropertyDTO>(),
+                        objectProperties: new Map<string, VueRDFTypePropertyDTO>(),
+                    }
+
+                    for (let property of http.response.result.data_properties) {
+                        let propURI = property.uri;
+                        result.dataProperties.set(propURI, property);
+                    }
+                    for (let property of http.response.result.object_properties) {
+                        let propURI = property.uri;
+                        result.objectProperties.set(propURI, property);
+                    }
+
+                    return result;
                 });
 
             promises.push(typePromise);
@@ -151,8 +167,18 @@ export default class GenerateEventTemplate extends Vue {
 
     generateCSV(typeModels) {
 
-        let headers = ["uri", "rdfType", "isInstant", "start", "end", "targets", "description"];
-        let headersDescription = [
+      let headers = ["uri", "rdfType", "isInstant", "start", "end", "targets", "description"];
+
+      // list of properties URI to exclude from custom properties
+      let managedProperties = [
+          this.$opensilex.Oeev.IS_INSTANT,
+          this.$opensilex.Time.HAS_BEGINNING,
+          this.$opensilex.Time.HAS_END,
+          this.$opensilex.Oeev.CONCERNS,
+          this.$opensilex.Rdfs.COMMENT
+      ];
+
+      let headersDescription = [
             this.getPropertyDescription("Event.uri-help", false, "Event.uri-example"),
             this.getPropertyDescription("Event.type-help", false, "Event.type-example"),
             this.getPropertyDescription("Event.is-instant-help", true, "Event.is-instant-example"),
@@ -163,8 +189,10 @@ export default class GenerateEventTemplate extends Vue {
         ];
 
         if (this.isMove) {
+            managedProperties.push(this.$opensilex.Oeev.FROM, this.$opensilex.Oeev.TO);
 
             headers.push("from", "to", "coordinates", "x", "y", "z", "textualPosition");
+
             headersDescription.push(
                 this.getPropertyDescription("Position.from-help", false, "Position.from-placeholder"),
                 this.getPropertyDescription("Position.to-help", false, "Position.to-placeholder"),
@@ -176,21 +204,27 @@ export default class GenerateEventTemplate extends Vue {
             );
         }
 
-
-        let visitedProperties = new Set();
+        // exclude managed properties -> ensure that no property is present twice into header
+        let visitedProperties = new Set(managedProperties.map(property => this.$opensilex.getShortUri(property)));
 
         // for each type, add all non visited property header column and description
         for (let typeResult of typeModels) {
-            for (let propURI in typeResult.properties) {
-                if (!visitedProperties.has(propURI)) {
+
+            let propertyFunction = (propURI: string, property: VueRDFTypePropertyDTO) => {
+                if (!visitedProperties.has(this.$opensilex.getShortUri(propURI))) {
                     visitedProperties.add(propURI);
 
                     headers.push(propURI);
-
-                    let property = typeResult.properties[propURI];
                     headersDescription.push(this.getCustomPropertyDescription(property));
                 }
             }
+
+            typeResult.dataProperties.forEach((property, propURI) => {
+                propertyFunction(propURI, property);
+            });
+            typeResult.objectProperties.forEach((property, propURI) => {
+                propertyFunction(propURI, property);
+            });
         }
 
         let data = [headers, headersDescription];
@@ -200,38 +234,26 @@ export default class GenerateEventTemplate extends Vue {
         let endIndex = headers.indexOf("end");
         let targetIndex = headers.indexOf("targets");
 
-        if (this.targets.length > 0) {
+        // generate a row per target and per type
 
-            // Set a type if a type and only one has been selected.
-            let generatedType = typeModels && typeModels.length == 1 ? typeModels[0].uri : undefined;
+        // no target -> empty column
+        let generatedTargets = this.targets ? this.targets : [undefined];
 
-            // append row with pre-filled target column
-            this.targets.forEach(target => {
+        // no type -> empty column
+        let generatedTypes = typeModels ? typeModels.map(type => type.uri) : [undefined];
 
-                if (target && target.length > 0) {
-                    let row = new Array(headers.length).fill('');
-
-                    row[typeIndex] = generatedType;
-                    row[isInstantIndex] = "true";
-                    row[endIndex] = new Date().toISOString();
-                    row[targetIndex] = target;
-
-                    data.push(row);
-                }
-            });
-
-        // no target, append a row by type
-        } else if (typeModels && typeModels.length > 0) {
-            typeModels.forEach(typeModel => {
+        generatedTargets.forEach(generatedTarget => {
+            generatedTypes.forEach(generatedType => {
                 let row = new Array(headers.length).fill('');
 
-                row[typeIndex] = typeModel.uri;
+                row[typeIndex] = generatedType;
                 row[isInstantIndex] = "true";
                 row[endIndex] = new Date().toISOString();
+                row[targetIndex] = generatedTarget;
 
                 data.push(row);
             });
-        }
+        });
 
         return data;
     }

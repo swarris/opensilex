@@ -6,7 +6,10 @@
           <template v-slot:rightHeader>
             <div class="ml-3">
               <opensilex-EditButton
-                v-if="xpUri == factor.experiment"
+                v-if="
+                  user.hasCredential(
+                    credentials.CREDENTIAL_FACTOR_MODIFICATION_ID
+                  ) && xpUri == factor.experiment"
                 @click="factorForm.showEditForm(factor)"
                 variant="outline-primary"
                 label="component.factor.update-button"
@@ -75,6 +78,15 @@
               :fields="factorLevelFields"
               :globalFilterField="true"
             >
+
+            <template v-slot:export>
+            <b-button
+              class="mb-2 mr-2"
+              variant="secondary"
+              @click="exportFactorLevels()"
+            >{{$t("component.factor.details.export")}}
+            </b-button> 
+            </template>
               <template v-slot:cell(name)="{ data }">
                 <opensilex-UriLink
                   :uri="data.item.uri"
@@ -143,6 +155,31 @@ export default class FactorDetails extends Vue {
 
   beforeDestroy() {
     this.langUnwatcher();
+  }
+
+  exportFactorLevels() {
+    // Format levels in array
+    let levels = this.factor.levels;
+    let rows:  any = [
+        ["uri", "name", "description"],
+    ];
+    levels.forEach(level => {
+      rows.push([
+         level.uri,
+          level.name,
+          ((level.description == null || undefined) ? "" : level.description)
+      ])
+    });
+
+    // Create csv content
+    let csvContent =  rows.map(e => e.join(",")).join("\n");
+    // download 
+    let fileLink = document.createElement("a"); 
+    var blob = new Blob([csvContent],{type: 'text/csv;charset=utf-8;'});
+    var url = URL.createObjectURL(blob);
+    fileLink.href = url;
+    fileLink.setAttribute('download', 'export_'+ this.factor.name + '_factors_levels');
+    fileLink.click();
   }
 
   private langUnwatcher;
@@ -233,6 +270,7 @@ en:
         factorLevels: Levels
         no-factorLevels-provided: No factor levels provided
         search: Search in name and description
+        export: Export all
 fr:
   component:
     factor:
@@ -242,5 +280,6 @@ fr:
         factorLevels: Niveaux de facteurs associés
         no-factorLevels-provided: Aucun niveau de facteur associé
         search: Recherche dans nom et description
+        export: Tout exporter
 
 </i18n>

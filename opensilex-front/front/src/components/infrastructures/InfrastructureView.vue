@@ -1,56 +1,70 @@
 <template>
   <div class="container-fluid">
-    <opensilex-PageHeader
-      icon="ik#ik-globe"
-      title="component.menu.infrastructures"
-      description="InfrastructureView.description"
-      :isExperimentalFeature="true"
-    ></opensilex-PageHeader>
     <div class="row">
       <div class="col-md-6">
         <!-- Infrastructure tree -->
         <opensilex-InfrastructureTree
           ref="infrastructureTree"
-          @onSelect="updateSelected"
+          @onSelect="onSelectedOrganizationOrSite"
         ></opensilex-InfrastructureTree>
-        <!-- Infrastructure facilities -->
-        <opensilex-InfrastructureFacilitiesView
-          :selected="selected"
-          @onUpdate="refresh"
-          @onCreate="refresh"
-          @onDelete="refresh"
-        ></opensilex-InfrastructureFacilitiesView>
       </div>
       <div class="col-md-6">
         <!-- Infrastructure detail -->
-        <opensilex-InfrastructureDetail :selected="selected"></opensilex-InfrastructureDetail>
-        <!-- Infrastructure groups -->
-        <opensilex-InfrastructureGroupsView
-          :selected="selected"
-          @onUpdate="refresh"
-          @onCreate="refresh"
-          @onDelete="refresh"
-        ></opensilex-InfrastructureGroupsView>
+        <opensilex-InfrastructureDetail
+          :selected="selectedOrganization"
+          @onUpdate="refreshTree"
+          class="infrastructureDetailComponent"
+        ></opensilex-InfrastructureDetail>
+        <!-- Site detail -->
+        <opensilex-SiteDetail
+          :selected="selectedSite"
+          :withActions="true"
+          @onUpdate="refreshTree"
+        ></opensilex-SiteDetail>
+        <!-- Facilities -->
+        <opensilex-FacilitiesView
+          v-if="selectedFacilities"
+          :withActions="facilitiesActions"
+          @onUpdate="refreshTree"
+          @onCreate="refreshTree"
+          @onDelete="refreshTree"
+          :facilities="selectedFacilities"
+          :organization="selectedOrganization"
+          :site="selectedSite"
+          :isSelectable="false"
+          :displayButtonOnTop="false"
+        ></opensilex-FacilitiesView>
       </div>
     </div>
   </div>
 </template>
 
 <script lang="ts">
-import { Component, Ref } from "vue-property-decorator";
+import {Component, Ref} from "vue-property-decorator";
 import Vue from "vue";
-// @ts-ignore
-import { OrganisationsService, InfrastructureGetDTO } from "opensilex-core/index";
+import {InfrastructureGetDTO, NamedResourceDTOInfrastructureFacilityModel, OrganizationsService, SiteGetDTO} from "opensilex-core/index";
+import Org from "../../ontologies/Org";
+import InfrastructureTree from "./InfrastructureTree.vue";
 
 @Component
 export default class InfrastructureView extends Vue {
   $opensilex: any;
   $store: any;
-  service: OrganisationsService;
+  $route: any;
+  service: OrganizationsService;
 
-  @Ref("infrastructureTree") readonly infrastructureTree!: any;
+  @Ref("infrastructureTree") readonly infrastructureTree!: InfrastructureTree;
+  @Ref("organizationFacilitiesView") readonly organizationFacilitiesView!: any;
+  @Ref("facilitiesView") readonly facilitiesView!: any;
 
-  selected: InfrastructureGetDTO = null;
+  selectedOrganization: InfrastructureGetDTO = null;
+  selectedSite: SiteGetDTO = null;
+
+  created() {
+    this.service = this.$opensilex.getService(
+        "opensilex-core.OrganizationsService"
+    );
+  }
 
   get user() {
     return this.$store.state.user;
@@ -60,24 +74,79 @@ export default class InfrastructureView extends Vue {
     return this.$store.state.credentials;
   }
 
-  updateSelected(newSelection) {
-    this.selected = newSelection;
+  get facilitiesActions(): boolean {
+    return !!this.selectedOrganization;
   }
 
-  refresh() {
-    this.infrastructureTree.refresh(this.selected.uri);
+  get selectedFacilities(): Array<NamedResourceDTOInfrastructureFacilityModel> {
+    if (this.selectedOrganization) {
+      return this.selectedOrganization.facilities;
+    }
+    if (this.selectedSite) {
+      return this.selectedSite.facilities;
+    }
+    return undefined;
+  }
+
+  onSelectedOrganizationOrSite(selection: InfrastructureGetDTO | SiteGetDTO) {
+    if (!selection) {
+      this.clearSelection();
+      return;
+    }
+
+    if (Org.checkURIS(Org.SITE_TYPE_URI, selection.rdf_type)) {
+      this.updateSelectedSite(selection);
+    } else { // Organization
+      this.updateSelectedOrganization(selection);
+    }
+  }
+
+  clearSelection() {
+    this.selectedSite = undefined;
+    this.selectedOrganization = undefined;
+  }
+
+  updateSelectedOrganization(newSelection) {
+    this.selectedSite = undefined;
+    this.selectedOrganization = newSelection;
+  }
+
+  updateSelectedSite(newSite) {
+    this.selectedOrganization = undefined;
+    this.selectedSite = newSite;
+  }
+
+  refreshTree() {
+    let uri = undefined;
+    if (this.selectedOrganization) {
+      uri = this.selectedOrganization.uri;
+    } else if (this.selectedSite) {
+      uri = this.selectedSite.uri;
+    }
+
+    this.infrastructureTree.refresh(uri);
   }
 }
 </script>
 
+
 <style scoped lang="scss">
+@media only screen and (min-width: 768px) {
+  .infrastructureDetailComponent {
+    margin-top: 30px;
+  }
+}
 </style>
 
 <i18n>
 en:
   InfrastructureView:
     description: Manage and configure organizations
+    organizations: Organizations and sites
+    facilities: Facilities
 fr:
   InfrastructureView:
     description: Gérer et configurer les organisations
+    organizations: Organisations et sites
+    facilities: Installations techniques
 </i18n>

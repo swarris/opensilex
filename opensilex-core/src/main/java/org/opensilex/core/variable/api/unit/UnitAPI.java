@@ -6,9 +6,23 @@
 package org.opensilex.core.variable.api.unit;
 
 import io.swagger.annotations.*;
+import org.opensilex.core.variable.api.VariableAPI;
+import org.opensilex.core.variable.dal.BaseVariableDAO;
+import org.opensilex.core.variable.dal.UnitModel;
+import org.opensilex.security.authentication.ApiCredential;
+import org.opensilex.security.authentication.ApiCredentialGroup;
+import org.opensilex.security.authentication.ApiProtected;
+import org.opensilex.security.authentication.NotFoundURIException;
+import org.opensilex.security.authentication.injection.CurrentUser;
+import org.opensilex.security.user.dal.UserModel;
+import org.opensilex.server.response.*;
+import org.opensilex.sparql.deserializer.SPARQLDeserializers;
+import org.opensilex.sparql.exceptions.SPARQLAlreadyExistingUriException;
+import org.opensilex.sparql.exceptions.SPARQLInvalidUriListException;
+import org.opensilex.sparql.service.SPARQLService;
+import org.opensilex.utils.ListWithPagination;
+import org.opensilex.utils.OrderBy;
 
-import java.net.URI;
-import java.util.List;
 import javax.inject.Inject;
 import javax.validation.Valid;
 import javax.validation.constraints.Min;
@@ -16,26 +30,9 @@ import javax.validation.constraints.NotNull;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-
-import org.opensilex.core.variable.api.VariableAPI;
-import org.opensilex.core.variable.dal.UnitModel;
-import org.opensilex.core.variable.dal.BaseVariableDAO;
-import org.opensilex.security.authentication.NotFoundURIException;
-import org.opensilex.security.authentication.injection.CurrentUser;
-import org.opensilex.security.user.dal.UserModel;
-import org.opensilex.server.response.ErrorResponse;
-import org.opensilex.server.response.ObjectUriResponse;
-import org.opensilex.server.response.PaginatedListResponse;
-import org.opensilex.server.response.SingleObjectResponse;
-import org.opensilex.security.authentication.ApiCredential;
-import org.opensilex.security.authentication.ApiCredentialGroup;
-import org.opensilex.security.authentication.ApiProtected;
-import org.opensilex.sparql.deserializer.SPARQLDeserializers;
-import org.opensilex.sparql.response.ObjectNamedResourceDTO;
-import org.opensilex.sparql.service.SPARQLService;
-import org.opensilex.sparql.exceptions.SPARQLAlreadyExistingUriException;
-import org.opensilex.utils.OrderBy;
-import org.opensilex.utils.ListWithPagination;
+import java.net.URI;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.opensilex.core.variable.api.VariableAPI.*;
 
@@ -108,6 +105,38 @@ public class UnitAPI {
         }
     }
 
+    @GET
+    @Path("by_uris")
+    @ApiOperation("Get detailed units by uris")
+    @ApiProtected
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @ApiResponses(value = {
+        @ApiResponse(code = 200, message = "Return units", response = UnitDetailsDTO.class, responseContainer = "List"),
+        @ApiResponse(code = 400, message = "Invalid parameters", response = ErrorDTO.class),
+        @ApiResponse(code = 404, message = "Unit not found (if any provided URIs is not found", response = ErrorDTO.class)
+    })
+    public Response getUnitsByURIs(
+            @ApiParam(value = "Units URIs", required = true) @QueryParam("uris") @NotNull List<URI> uris
+    ) throws Exception {
+        
+        BaseVariableDAO<UnitModel> dao = new BaseVariableDAO<>(UnitModel.class, sparql);
+
+        try {
+            List<UnitDetailsDTO> resultDTOList = dao.getList(uris)
+                    .stream()
+                    .map(UnitDetailsDTO::new)
+                    .collect(Collectors.toList());
+
+            return new PaginatedListResponse<>(resultDTOList).getResponse();
+
+        }catch (SPARQLInvalidUriListException e){
+            return new ErrorResponse(Response.Status.NOT_FOUND, "Units not found", e.getStrUris()).getResponse();
+        }
+
+    }
+    
+    
     @PUT
     @ApiOperation("Update an unit")
     @ApiProtected
@@ -167,7 +196,7 @@ public class UnitAPI {
             @ApiParam(value = "Name (regex)", example = "Centimeter") @QueryParam("name") String namePattern ,
             @ApiParam(value = "List of fields to sort as an array of fieldName=asc|desc", example = "uri=asc") @DefaultValue("name=asc") @QueryParam("order_by") List<OrderBy> orderByList,
             @ApiParam(value = "Page number", example = "0") @QueryParam("page") @DefaultValue("0") @Min(0) int page,
-            @ApiParam(value = "Page size", example = "20") @QueryParam("page_size") @DefaultValue("20") @Min(0) int pageSize
+            @ApiParam(value = "Page size", example = "20") @QueryParam("page_size") @Min(0) int pageSize
     ) throws Exception {
 
         BaseVariableDAO<UnitModel> dao = new BaseVariableDAO<>(UnitModel.class, sparql);
@@ -175,7 +204,8 @@ public class UnitAPI {
                 namePattern,
                 orderByList,
                 page,
-                pageSize
+                pageSize,
+                currentUser.getLanguage()
         );
 
         ListWithPagination<UnitGetDTO> resultDTOList = resultList.convert(

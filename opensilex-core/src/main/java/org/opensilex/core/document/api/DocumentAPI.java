@@ -6,53 +6,40 @@
 //******************************************************************************
 package org.opensilex.core.document.api;
 
-import java.io.InputStream;
 import io.swagger.annotations.*;
-import org.opensilex.core.document.dal.DocumentDAO;
-import org.opensilex.core.document.dal.DocumentModel;
-import org.opensilex.server.response.ErrorResponse;
-import org.opensilex.server.response.ErrorDTO;
-import org.opensilex.server.response.ObjectUriResponse;
-import org.opensilex.server.response.PaginatedListResponse;
-import org.opensilex.server.response.SingleObjectResponse;
-import org.opensilex.sparql.exceptions.SPARQLAlreadyExistingUriException;
-import org.opensilex.sparql.service.SPARQLService;
-
-import org.opensilex.utils.OrderBy;
-import org.opensilex.utils.ListWithPagination;
+import org.apache.commons.io.FilenameUtils;
 import org.glassfish.jersey.media.multipart.FormDataContentDisposition;
 import org.glassfish.jersey.media.multipart.FormDataParam;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
-import java.nio.file.Paths;
+import org.opensilex.core.document.dal.DocumentDAO;
+import org.opensilex.core.document.dal.DocumentModel;
 import org.opensilex.fs.service.FileStorageService;
-import javax.inject.Inject;
-import javax.validation.Valid;
-import javax.validation.ConstraintViolation;
-import javax.validation.Validation;
-import javax.validation.Validator;
-import java.sql.Timestamp;
-import javax.validation.constraints.Min;
-import javax.validation.constraints.NotNull;
-import javax.validation.constraints.NotEmpty;
-import javax.ws.rs.*;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
-import java.util.Set;
-import java.net.URI;
-import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
+import org.opensilex.nosql.mongodb.MongoDBService;
 import org.opensilex.security.authentication.ApiCredential;
 import org.opensilex.security.authentication.ApiCredentialGroup;
 import org.opensilex.security.authentication.ApiProtected;
 import org.opensilex.security.authentication.injection.CurrentUser;
 import org.opensilex.security.user.dal.UserModel;
+import org.opensilex.server.exceptions.NotFoundException;
+import org.opensilex.server.response.ErrorResponse;
+import org.opensilex.server.response.ObjectUriResponse;
+import org.opensilex.server.response.PaginatedListResponse;
+import org.opensilex.server.response.SingleObjectResponse;
 import org.opensilex.sparql.deserializer.URIDeserializer;
-import java.io.*; 
+import org.opensilex.sparql.exceptions.SPARQLAlreadyExistingUriException;
+import org.opensilex.sparql.service.SPARQLService;
+import org.opensilex.utils.ListWithPagination;
+import org.opensilex.utils.OrderBy;
+
+import javax.inject.Inject;
+import javax.validation.Valid;
+import javax.validation.constraints.Min;
+import javax.validation.constraints.NotNull;
+import javax.ws.rs.*;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import java.io.File;
+import java.net.URI;
+import java.util.List;
 
 /**
  * @author Fernandez Emilie
@@ -69,10 +56,10 @@ public class DocumentAPI {
     public static final String CREDENTIAL_DOCUMENT_GROUP_LABEL_KEY = "credential-groups.documents";
 
     public static final String CREDENTIAL_DOCUMENT_MODIFICATION_ID = "document-modification";
-    public static final String CREDENTIAL_DOCUMENT_MODIFICATION_LABEL_KEY = "credential.document.modification";
+    public static final String CREDENTIAL_DOCUMENT_MODIFICATION_LABEL_KEY = "credential.default.modification";
 
     public static final String CREDENTIAL_DOCUMENT_DELETE_ID = "document-delete";
-    public static final String CREDENTIAL_DOCUMENT_DELETE_LABEL_KEY = "credential.document.delete";
+    public static final String CREDENTIAL_DOCUMENT_DELETE_LABEL_KEY = "credential.default.delete";
 
     protected static final String DOCUMENT_EXAMPLE_URI = "http://opensilex/set/documents/d21";
 
@@ -81,6 +68,9 @@ public class DocumentAPI {
 
     @Inject
     private SPARQLService sparql;
+
+    @Inject
+    private MongoDBService nosql;
 
     @Inject
     private FileStorageService fs;
@@ -112,14 +102,26 @@ public class DocumentAPI {
             @ApiParam(value = "file", type = "file") @FormDataParam("file") File file,
             @FormDataParam("file") FormDataContentDisposition fileDetail
         ) throws Exception {
-            DocumentDAO documentDAO = new DocumentDAO(sparql, fs);
+            DocumentDAO documentDAO = new DocumentDAO(sparql, nosql, fs);
             try {
                 DocumentModel documentModel = docDto.newModel();
-                if (file == null || file.length() == 0 || file.length() >= 104857600){
+
+                if (file != null && (file.length() == 0 || file.length() >= 104857600)) {
                     return new ErrorResponse(
-                        Response.Status.BAD_REQUEST,
-                        "Bad file",
-                        "Missing, empty or too large file size:  0 MB < filesize < 100 MB"
+                            Response.Status.BAD_REQUEST,
+                            "Bad file",
+                            "Empty or too large file size:  0 MB < filesize < 100 MB"
+                    ).getResponse();
+                }
+
+                if (file != null) {
+                    String format = FilenameUtils.getExtension(fileDetail.getFileName());
+                    documentModel.setFormat(format);
+                } else if (docDto.getSource() == null) {
+                    return new ErrorResponse(
+                            Response.Status.BAD_REQUEST,
+                            "No file or source",
+                            "A document should have a file or a source, none was provided"
                     ).getResponse();
                 }
 
@@ -137,8 +139,6 @@ public class DocumentAPI {
                     ).getResponse();
                 }
 
-                String format = FilenameUtils.getExtension(fileDetail.getFileName());
-                documentModel.setFormat(format); 
                 documentDAO.create(documentModel, file);
                 return new ObjectUriResponse(Response.Status.CREATED, documentModel.getUri()).getResponse();
 
@@ -153,7 +153,7 @@ public class DocumentAPI {
     }
 
     /**
-     * @param Uri Document URI
+     * @param uri Document URI
      * @return a {@link Response} with a {@link SingleObjectResponse} containing the {@link DocumentGetDTO}
      */
     @GET
@@ -168,7 +168,7 @@ public class DocumentAPI {
     public Response getDocumentMetadata(
             @ApiParam(value = "Document URI", example = "http://opensilex.dev/set/documents/ZA17", required = true) @PathParam("uri") @NotNull URI uri
     ) throws Exception {
-        DocumentDAO documentDAO = new DocumentDAO(sparql, fs);
+        DocumentDAO documentDAO = new DocumentDAO(sparql, nosql, fs);
         DocumentModel documentModel = documentDAO.getMetadata(uri, currentUser);
 
         if (documentModel != null) {
@@ -183,7 +183,7 @@ public class DocumentAPI {
     }
 
     /**
-     * @param Uri Document URI
+     * @param uri Document URI
      * @return a {@link Response} with a {@link SingleObjectResponse} containing the {@link DocumentGetDTO}
      */
     @GET
@@ -198,18 +198,25 @@ public class DocumentAPI {
     public Response getDocumentFile(
             @ApiParam(value = "Document URI", example = "http://opensilex.dev/set/documents/ZA17", required = true) @PathParam("uri") @NotNull URI uri
     ) throws Exception {
+        uri = new URI(URIDeserializer.getExpandedURI(uri.toString()));
+        DocumentDAO documentDAO = new DocumentDAO(sparql, nosql, fs);
+        DocumentModel metadata = documentDAO.getMetadata(uri, currentUser);
+
+        if (metadata == null) {
+            throw new NotFoundException("No metadata was found for the document");
+        }
+
+        if (metadata.getSource() != null) {
+            throw new NotFoundException("The document has no attached file, but a source URL is present : " + metadata.getSource().toString());
+        }
 
         try {
-            uri = new URI(URIDeserializer.getExpandedURI(uri.toString()));
-            DocumentDAO documentDAO = new DocumentDAO(sparql, fs);
             byte[] file = documentDAO.getFile(uri);
             return Response.ok(file, MediaType.APPLICATION_OCTET_STREAM)
                             .build();  
         } 
         catch (Exception e) {
-            return Response.status(Response.Status.NOT_FOUND.getStatusCode()).build();    
-            // return new ErrorResponse(Response.Status.NOT_FOUND, "File not found",
-            // "Unknown file URI: " + uri.toString()).getResponse();
+            return Response.status(Response.Status.NOT_FOUND.getStatusCode()).build();
         }
     }
 
@@ -225,12 +232,16 @@ public class DocumentAPI {
         @ApiResponse(code = 404, message = "Document URI not found", response = ErrorResponse.class)
     })
     @ApiProtected
+    @ApiCredential(
+            credentialId = CREDENTIAL_DOCUMENT_MODIFICATION_ID,
+            credentialLabelKey = CREDENTIAL_DOCUMENT_MODIFICATION_LABEL_KEY
+    )
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     @Produces(MediaType.APPLICATION_JSON)
     public Response updateDocument(
         @ApiParam(value = "description", required =  true, type = "string") @NotNull @Valid @FormDataParam("description") DocumentCreationDTO docDto
         ) throws Exception {
-        DocumentDAO documentDAO = new DocumentDAO(sparql, fs);
+        DocumentDAO documentDAO = new DocumentDAO(sparql, nosql, fs);
         DocumentModel documentModel = docDto.newModel();
 
         boolean isType = documentDAO.isDocumentType(docDto.getType()); 
@@ -271,7 +282,7 @@ public class DocumentAPI {
             @ApiParam(value = "Document URI", required = true) @PathParam("uri") @NotNull URI uri
     ) throws Exception {
         uri = new URI(URIDeserializer.getExpandedURI(uri.toString()));
-        DocumentDAO documentDAO = new DocumentDAO(sparql, fs);
+        DocumentDAO documentDAO = new DocumentDAO(sparql, nosql, fs);
         documentDAO.delete(uri, currentUser);
         return new ObjectUriResponse(Response.Status.OK, uri).getResponse();
     }
@@ -304,7 +315,7 @@ public class DocumentAPI {
             @ApiParam(value = "Page number", example = "0") @QueryParam("page") @DefaultValue("0") @Min(0) int page,
             @ApiParam(value = "Page size", example = "20") @QueryParam("pageSize") @DefaultValue("20") @Min(0) int pageSize
     ) throws Exception {
-        DocumentDAO documentDAO = new DocumentDAO(sparql, fs);
+        DocumentDAO documentDAO = new DocumentDAO(sparql, nosql, fs);
         ListWithPagination<DocumentModel> resultList = documentDAO.search(
                 currentUser,
                 type,

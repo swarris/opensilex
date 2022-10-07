@@ -7,6 +7,8 @@ package org.opensilex.front.api;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
+import org.opensilex.front.config.VersionLabel;
+
 import java.util.List;
 import javax.validation.constraints.NotNull;
 
@@ -35,9 +37,6 @@ public class FrontConfigDTO {
     String footerComponent;
 
     @NotNull
-    List<MenuItemDTO> menu;
-
-    @NotNull
     List<RouteDTO> routes;
 
     String themeModule;
@@ -49,6 +48,10 @@ public class FrontConfigDTO {
     String openIDConnectionTitle;
     
     Boolean activateResetPassword;
+
+    String geocodingService;
+
+    VersionLabel versionLabel;
 
     @ApiModelProperty(value = "Application url path prefix", example = "app")
     public String getPathPrefix() {
@@ -113,15 +116,6 @@ public class FrontConfigDTO {
         this.loginComponent = loginComponent;
     }
 
-    @ApiModelProperty(value = "Application menu with routes")
-    public List<MenuItemDTO> getMenu() {
-        return menu;
-    }
-
-    public void setMenu(List<MenuItemDTO> menu) {
-        this.menu = menu;
-    }
-
     @ApiModelProperty(value = "List of configured routes")
     public List<RouteDTO> getRoutes() {
         return routes;
@@ -173,7 +167,22 @@ public class FrontConfigDTO {
     public void setActivateResetPassword(Boolean activateResetPassword) {
         this.activateResetPassword = activateResetPassword;
     }
-    
-    
 
+    @ApiModelProperty(value = "Geocoding service")
+    public String getGeocodingService() {
+        return geocodingService;
+    }
+
+    public void setGeocodingService(String geocodingService) {
+        this.geocodingService = geocodingService;
+    }
+
+    @ApiModelProperty(value = "Version label to use in the header")
+    public VersionLabel getVersionLabel() {
+        return versionLabel;
+    }
+
+    public void setVersionLabel(VersionLabel versionLabel) {
+        this.versionLabel = versionLabel;
+    }
 }

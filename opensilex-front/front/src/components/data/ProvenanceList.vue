@@ -1,62 +1,91 @@
 <template>
-  <div>
+   <div class="container-fluid">
+      <opensilex-PageContent
+      class="pagecontent"
+    >
+
+           <!-- Toggle Sidebar--> 
+      <div class="searchMenuContainer"
+      v-on:click="SearchFiltersToggle = !SearchFiltersToggle"
+      :title="searchFiltersPannel()">
+        <div class="searchMenuIcon">
+          <i class="icon ik ik-search"></i>
+        </div>
+      </div>
+      <!-- FILTERS -->
+      <Transition>
+        <div v-show="SearchFiltersToggle">
+
     <opensilex-SearchFilterField
       @search="refresh()"
       @clear="reset()"
       label="DataView.filter.label"
       :showTitle="false"
+      class="searchFilterField"
     >
       <template v-slot:filters>
 
         <!-- Name -->
-        <opensilex-FilterField>
-          <label>{{$t('ProvenanceView.name')}}</label>
-          <opensilex-StringFilter
-            :filter.sync="filter.name"
-            placeholder="ProvenanceView.name-placeholder"
-          ></opensilex-StringFilter>
-        </opensilex-FilterField>
+        <div>
+          <opensilex-FilterField>
+            <label>{{$t('ProvenanceView.name')}}</label>
+            <opensilex-StringFilter
+              :filter.sync="filter.name"
+              placeholder="ProvenanceView.name-placeholder"
+              class="searchFilter"
+            ></opensilex-StringFilter>
+          </opensilex-FilterField> <br>
+        </div>
 
         <!-- activity type-->
-        <opensilex-FilterField>
-          <opensilex-TypeForm
-            :type.sync="filter.activity_type"
-            :baseType="Prov.ACTIVITY_TYPE_URI"
-            label="ProvenanceView.activity_type"
-            placeholder="ProvenanceView.activity_type-placeholder"
-          ></opensilex-TypeForm>
-        </opensilex-FilterField>
+        <div>
+          <opensilex-FilterField>
+            <opensilex-TypeForm
+              :type.sync="filter.activity_type"
+              :baseType="Prov.ACTIVITY_TYPE_URI"
+              label="ProvenanceView.activity_type"
+              placeholder="ProvenanceView.activity_type-placeholder"
+              class="searchFilter"
+            ></opensilex-TypeForm>
+          </opensilex-FilterField>
+        </div>
 
         <!-- Agent type-->
-        <opensilex-FilterField>
-          <opensilex-AgentTypeSelector
-            :multiple="false"
-            :agentType.sync="filter.agent_type"
-            @clear="filter.agent = undefined"
-            @select="filter.agent = undefined"
-          >
-          </opensilex-AgentTypeSelector>
-        </opensilex-FilterField>
+        <div>
+          <opensilex-FilterField>
+            <opensilex-AgentTypeSelector
+              :multiple="false"
+              :selected.sync="filter.agent_type"
+              @clear="filter.agent = undefined"
+              @select="filter.agent = undefined"
+              :key="lang"
+              class="searchFilter"
+            >
+            </opensilex-AgentTypeSelector>
+          </opensilex-FilterField>
+        </div>
 
-        <opensilex-FilterField v-if="filter.agent_type == 'vocabulary:Operator'">
+        <opensilex-FilterField v-if="filter.agent_type === 'vocabulary:Operator'">
           <opensilex-UserSelector
             :users.sync="filter.agent"
             label="ProvenanceForm.agent"
           ></opensilex-UserSelector>
         </opensilex-FilterField>
 
-        <opensilex-FilterField v-else-if="filter.agent_type != undefined && filter.agent_type != null">
+        <opensilex-FilterField v-else-if="filter.agent_type">
           <opensilex-DeviceSelector
             ref="deviceSelector"
             label="ProvenanceForm.agent"
             :value.sync="filter.agent"
             :multiple="false"
-            :deviceType="filter.agent_type"
+            :type="filter.agent_type"
           ></opensilex-DeviceSelector>
         </opensilex-FilterField>
 
       </template>
     </opensilex-SearchFilterField>
+        </div>
+      </Transition>
 
     <opensilex-TableAsyncView
       ref="tableRef"
@@ -105,14 +134,14 @@
       <template v-slot:cell(actions)="{data}">
         <b-button-group size="sm">
           <opensilex-EditButton
-            v-if="user.hasCredential(credentials.CREDENTIAL_DATA_MODIFICATION_ID)"
+            v-if="user.hasCredential(credentials.CREDENTIAL_PROVENANCE_MODIFICATION_ID)"
             @click="$emit('onEdit', data.item.uri)"
             label="ProvenanceList.update"
             :small="true"
             
           ></opensilex-EditButton>
           <opensilex-DeleteButton
-            v-if="user.hasCredential(credentials.CREDENTIAL_DATA_DELETE_ID)"
+            v-if="user.hasCredential(credentials.CREDENTIAL_PROVENANCE_DELETE_ID)"
             @click="$emit('onDelete', data.item.uri)"
             label="ProvenanceList.delete"
             :small="true"
@@ -129,6 +158,7 @@
       :initForm="initForm"
       icon="ik#ik-file-text"
     ></opensilex-ModalForm>
+      </opensilex-PageContent>
   </div>
 </template>
 
@@ -150,6 +180,9 @@ export default class ProvenanceList extends Vue {
   disabled = false;
   Prov = Prov;
 
+  get lang() {
+    return this.$store.getters.language;
+  }
 
   @Prop({
     default: false
@@ -178,13 +211,19 @@ export default class ProvenanceList extends Vue {
   @Ref("deviceSelector") readonly deviceSelector!: any;
   @Ref("documentForm") readonly documentForm!: any;
 
-  filter = {
+  filter: any = {
     name: undefined,
     activity_type: undefined,
     agent_type: undefined,
     agent: undefined,
     operator: undefined
   };
+
+  data(){
+    return {
+      SearchFiltersToggle : false,
+    }
+  }
 
   resetFilter() {
     this.filter = {
@@ -244,7 +283,7 @@ export default class ProvenanceList extends Vue {
   created() {
     this.service = this.$opensilex.getService("opensilex.DataService");
     this.loadActivityTypes();
-    this.$opensilex.updateFiltersFromURL(this.$route.query);
+    this.$opensilex.updateFiltersFromURL(this.$route.query,this.filter);
   }
 
   get getSelectedProv() {
@@ -329,11 +368,18 @@ export default class ProvenanceList extends Vue {
       })
       .catch(this.$opensilex.errorHandler);
   }
+  searchFiltersPannel() {
+    return  this.$t("searchfilter.label")
+  }
   
 }
 </script>
 
 <style scoped lang="scss">
+.pagecontent {
+  width: 102%;
+  margin-left : -12px;
+}
 </style>
 
 <i18n>

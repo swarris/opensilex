@@ -4,6 +4,7 @@
       icon="fa#sun"
       :title="factor.name"
       description="component.menu.experimentalDesign.factors"
+      class="detail-element-header"
     ></opensilex-PageHeader>
 
     <opensilex-PageActions :tabs="true" :returnButton="true">
@@ -20,11 +21,16 @@
           }"
           >{{ $t("component.common.details-label") }}
         </b-nav-item>
-        <!-- <b-nav-item
+        <b-nav-item
           :active="isExperimentTab()"
-          :to="{ path: '/factor/experiments/' + encodeURIComponent(uri) }"
+          :to="{
+            path: '/' +
+              encodeURIComponent(xpUri) +
+              '/factor/experiments/' +
+               encodeURIComponent(uri)
+          }"
           >{{ $t("component.common.details.experiment") }}
-        </b-nav-item> -->
+        </b-nav-item>
         <b-nav-item
           :active="isDocumentTab()"
           :to="{
@@ -72,7 +78,7 @@
         ></opensilex-FactorDetails>
         <opensilex-AssociatedExperiments
           v-else-if="isExperimentTab()"
-          :uri="uri"
+          :searchMethod="searchExperiments"
         ></opensilex-AssociatedExperiments>
         <opensilex-AnnotationList
           v-else-if="isAnnotationTab()"
@@ -81,16 +87,16 @@
           :displayTargetColumn="false"
           :enableActions="true"
           :modificationCredentialId="
-            credentials.CREDENTIAL_FACTOR_MODIFICATION_ID
+            credentials.CREDENTIAL_ANNOTATION_MODIFICATION_ID
           "
-          :deleteCredentialId="credentials.CREDENTIAL_FACTOR_DELETE_ID"
+          :deleteCredentialId="credentials.CREDENTIAL_ANNOTATION_DELETE_ID"
           @onEdit="annotationModalForm.showEditForm($event)"
         ></opensilex-AnnotationList>
 
         <opensilex-DocumentTabList
           v-else-if="isDocumentTab()"
           :uri="uri"
-          :modificationCredentialId="credentials.CREDENTIAL_FACTOR_MODIFICATION_ID"
+          :modificationCredentialId="credentials.CREDENTIAL_DOCUMENT_MODIFICATION_ID"
         ></opensilex-DocumentTabList>
       </template>
     </opensilex-PageContent>
@@ -202,6 +208,10 @@ export default class FactorView extends Vue {
     this.xpUri = decodeURIComponent(this.$route.params.xpUri);
 
     this.loadFactor(this.uri);
+  }
+
+  searchExperiments() {
+    return this.service.getFactorAssociatedExperiments(this.uri);
   }
 
   loadFactor(uri: string) {

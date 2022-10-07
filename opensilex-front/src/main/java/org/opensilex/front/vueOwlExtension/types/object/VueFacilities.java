@@ -16,17 +16,17 @@ public class VueFacilities implements VueOntologyObjectType {
 
     @Override
     public String getTypeUri() {
-        return Oeso.InfrastructureFacility.getURI();
+        return Oeso.Facility.getURI();
     }
 
     @Override
     public String getInputComponent() {
-        return "opensilex-InfrastructureFacilityPropertySelector";
+        return "opensilex-FacilityPropertySelector";
     }
 
     @Override
     public String getViewComponent() {
-        return "opensilex-InfrastructureFacilityPropertyView";
+        return "opensilex-FacilityPropertyView";
     }
 
 }

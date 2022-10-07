@@ -33,14 +33,16 @@ import static org.junit.Assert.assertNotNull;
  */
 public class EntityApiTest extends AbstractSecurityIntegrationTest {
 
-    public String path = EntityAPI.PATH;
+    public static final String path = EntityAPI.PATH;
 
-    public String getByUriPath = path + "/{uri}";
-    public String createPath = path;
-    public String updatePath = path;
-    public String deletePath = path + "/{uri}";
+    public static final String getByUriPath = path + "/{uri}";
+    public static final String createPath = path;
+    public static final String updatePath = path;
+    public static final String deletePath = path + "/{uri}";
+    //public static final String searchEntitiesOfInterestPath = path + "/"+EntityAPI.SEARCH_ENTITIES_OF_INTEREST_PATH;
 
-    private EntityCreationDTO getCreationDto() {
+
+    public static EntityCreationDTO getCreationDto() {
         EntityCreationDTO dto = new EntityCreationDTO();
         dto.setName("Artemisia absinthium");
         dto.setDescription("A plant which was used in the past for building methanol");

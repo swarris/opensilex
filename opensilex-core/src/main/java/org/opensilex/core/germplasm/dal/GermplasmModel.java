@@ -6,19 +6,20 @@
 //******************************************************************************
 package org.opensilex.core.germplasm.dal;
 
-import java.net.URI;
-import java.util.List;
-import java.util.Map;
 import org.apache.jena.sparql.vocabulary.FOAF;
 import org.apache.jena.vocabulary.RDFS;
 import org.apache.jena.vocabulary.SKOS;
 import org.opensilex.core.ontology.Oeso;
+import org.opensilex.nosql.mongodb.metadata.MetaDataModel;
 import org.opensilex.sparql.annotations.SPARQLIgnore;
 import org.opensilex.sparql.annotations.SPARQLProperty;
 import org.opensilex.sparql.annotations.SPARQLResource;
 import org.opensilex.sparql.model.SPARQLLabel;
 import org.opensilex.sparql.model.SPARQLNamedResourceModel;
-import org.opensilex.sparql.utils.ClassURIGenerator;
+import org.opensilex.uri.generation.ClassURIGenerator;
+
+import java.net.URI;
+import java.util.List;
 
 /**
  *
@@ -27,10 +28,12 @@ import org.opensilex.sparql.utils.ClassURIGenerator;
 @SPARQLResource(
         ontology = Oeso.class,
         resource = "Germplasm",
-        graph = "set/germplasms",
+        graph = GermplasmModel.GRAPH,
         prefix = "germplasm"
 )
-public class GermplasmModel extends SPARQLNamedResourceModel<GermplasmModel> implements ClassURIGenerator<GermplasmModel> {
+public class GermplasmModel extends SPARQLNamedResourceModel<GermplasmModel> implements ClassURIGenerator<GermplasmModel>{
+
+    public static final String GRAPH = "germplasm";
 
     @SPARQLIgnore
     protected String name;
@@ -100,14 +103,13 @@ public class GermplasmModel extends SPARQLNamedResourceModel<GermplasmModel> imp
     Integer productionYear;
     public static final String PRODUCTION_YEAR_SPARQL_VAR = "productionYear";
 
-    Map<String, String> attributes;
 
     @SPARQLProperty(
             ontology = SKOS.class,
             property = "altLabel"
     )
     List<String> synonyms;
-    public static final String SYNONYM_VAR = "synonym";
+    public static final String SYNONYM_VAR = "synonyms";
     
     @SPARQLProperty(
             ontology = FOAF.class,
@@ -115,6 +117,9 @@ public class GermplasmModel extends SPARQLNamedResourceModel<GermplasmModel> imp
     )
     URI website;
     public static final String WEBSITE_VAR = "website";
+
+    @SPARQLIgnore
+    private MetaDataModel metadata;
 
     public SPARQLLabel getLabel() {
         return label;
@@ -124,12 +129,18 @@ public class GermplasmModel extends SPARQLNamedResourceModel<GermplasmModel> imp
         this.label = label;
     }
 
+    @Override
     public String getName() {
         return getLabel().getDefaultValue();
     }
 
+    @Override
     public void setName(String name) {
         super.setName(name);
+        if(label == null){
+            label = new SPARQLLabel();
+        }
+        label.setDefaultValue(name);
     }
 
     public GermplasmModel getSpecies() {
@@ -155,7 +166,7 @@ public class GermplasmModel extends SPARQLNamedResourceModel<GermplasmModel> imp
     public void setAccession(GermplasmModel accession) {
         this.accession = accession;
     }
-
+    
     public String getComment() {
         return comment;
     }
@@ -180,12 +191,13 @@ public class GermplasmModel extends SPARQLNamedResourceModel<GermplasmModel> imp
         this.productionYear = productionYear;
     }
 
-    public Map<String, String> getAttributes() {
-        return attributes;
+
+    public MetaDataModel getMetadata() {
+        return metadata;
     }
 
-    public void setAttributes(Map<String, String> attributes) {
-        this.attributes = attributes;
+    public void setMetadata(MetaDataModel metadata) {
+        this.metadata = metadata;
     }
 
     public List<String> getSynonyms() {
@@ -205,7 +217,7 @@ public class GermplasmModel extends SPARQLNamedResourceModel<GermplasmModel> imp
     }
     
     @Override
-    public String[] getUriSegments(GermplasmModel instance) {
+    public String[] getInstancePathSegments(GermplasmModel instance) {
         String germplasmType = "";
         if (instance.getType().getFragment() != null) {
             germplasmType = instance.getType().getFragment();

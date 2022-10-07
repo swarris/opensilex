@@ -1,15 +1,12 @@
 import Vue from 'vue'
 import Vuex from 'vuex'
-import { User } from './User'
+import {User} from './User'
 import VueRouter from 'vue-router';
-import { FrontConfigDTO } from '../lib';
-import { Menu } from './Menu';
-import { OpenSilexRouter } from './OpenSilexRouter';
+import {Menu} from './Menu';
+import {OpenSilexRouter} from './OpenSilexRouter';
 import OpenSilexVuePlugin from './OpenSilexVuePlugin';
-// @ts-ignore
-import { AuthenticationService } from 'opensilex-security/index';
-// @ts-ignore
-import { SystemService, VersionInfoDTO } from 'opensilex-core/index';
+import {AuthenticationService} from 'opensilex-security/index';
+import {FrontConfigDTO, UserFrontConfigDTO} from "../lib";
 
 Vue.use(Vuex)
 Vue.use(VueRouter)
@@ -67,12 +64,16 @@ let defaultConfig: FrontConfigDTO = {
   pathPrefix: "/",
   homeComponent: "opensilex-front-ToDoComponent",
   notFoundComponent: "opensilex-front-ToDoComponent",
-  headerComponent: "opensilex-front-ToDoComponent",
+  headerComponent: "opensilex-DefaultHeaderComponent",
   loginComponent: "opensilex-front-ToDoComponent",
   menuComponent: "opensilex-front-ToDoComponent",
   footerComponent: "opensilex-front-ToDoComponent",
-  menu: [],
   routes: []
+};
+
+let defaultUserConfig: UserFrontConfigDTO = {
+  menu: [],
+  userIsAnonymous: true
 };
 
 let computePage = function(router) {
@@ -105,6 +106,7 @@ let store = new Vuex.Store({
     loaderVisible: false,
     openSilexRouter: null,
     config: defaultConfig,
+    userConfig: defaultUserConfig,
     menu: menu,
     menuVisible: true,
     disconnected: false,
@@ -119,12 +121,16 @@ let store = new Vuex.Store({
       CREDENTIAL_EXPERIMENT_DELETE_ID: "experiment-delete",
       CREDENTIAL_GROUP_MODIFICATION_ID: "group-modification",
       CREDENTIAL_GROUP_DELETE_ID: "group-delete",
+      CREDENTIAL_PROFILE_MODIFICATION_ID: "profile-modification",
+      CREDENTIAL_PROFILE_DELETE_ID: "profile-delete",
       CREDENTIAL_PROJECT_MODIFICATION_ID: "project-modification",
       CREDENTIAL_PROJECT_DELETE_ID: "project-delete",
       CREDENTIAL_USER_MODIFICATION_ID: "user-modification",
       CREDENTIAL_USER_DELETE_ID: "user-delete",
       CREDENTIAL_INFRASTRUCTURE_MODIFICATION_ID: "infrastructure-modification",
       CREDENTIAL_INFRASTRUCTURE_DELETE_ID: "infrastructure-delete",
+      CREDENTIAL_FACILITY_MODIFICATION_ID: "facility-modification",
+      CREDENTIAL_FACILITY_DELETE_ID: "facility-delete",
       CREDENTIAL_VARIABLE_MODIFICATION_ID: "variable-modification",
       CREDENTIAL_VARIABLE_DELETE_ID: "variable-delete",
       CREDENTIAL_FACTOR_MODIFICATION_ID: "factor-modification",
@@ -136,10 +142,16 @@ let store = new Vuex.Store({
       CREDENTIAL_AREA_MODIFICATION_ID: "area-modification",
       CREDENTIAL_AREA_DELETE_ID: "area-delete",
       CREDENTIAL_SCIENTIFIC_OBJECT_MODIFICATION_ID: "scientific-objects-modification",
-      CREDENTIAL_SCIENTIFIC_OBJECT_DELETE_ID: "scientific-objects-experiment-delete",
-      CREDENTIAL_DEVICE_DELETE_ID: "devices-delete",
+      CREDENTIAL_SCIENTIFIC_OBJECT_DELETE_ID: "scientific-objects-delete",
+      CREDENTIAL_DEVICE_DELETE_ID: "device-delete",
       CREDENTIAL_DEVICE_MODIFICATION_ID: "device-modification",
-      CREDENTIAL_DATA_MODIFICATION_ID: "data-modification"
+      CREDENTIAL_DATA_MODIFICATION_ID: "data-modification",
+      CREDENTIAL_EVENT_MODIFICATION_ID: "event-modification",
+      CREDENTIAL_EVENT_DELETE_ID: "event-delete",
+      CREDENTIAL_ANNOTATION_MODIFICATION_ID: "annotation-modification",
+      CREDENTIAL_ANNOTATION_DELETE_ID: "annotation-delete",
+      CREDENTIAL_PROVENANCE_MODIFICATION_ID: "provenance-modification",
+      CREDENTIAL_PROVENANCE_DELETE_ID: "provenance-delete"
     }
   },
   getters: {
@@ -161,8 +173,8 @@ let store = new Vuex.Store({
         autoRenewTimeout = undefined;
       }
 
-      let exipreAfter = user.getExpirationMs();
-      let expireDate = new Date(exipreAfter);
+      let expireAfter = user.getDurationUntilExpirationMs();
+      let expireDate = new Date(expireAfter);
       console.debug("Define expiration timeout", expireDate.getMinutes(), "min", expireDate.getSeconds(), "sec");
       expireTimeout = setTimeout(() => {
         console.debug("Automatically call logout");
@@ -171,7 +183,7 @@ let store = new Vuex.Store({
         let opensilex = getOpenSilexPlugin();
         let message = opensilex.$i18n.t("component.common.errors.unauthorized-error");
         opensilex.showErrorToast("" + message);
-      }, exipreAfter);
+      }, expireAfter);
 
       let inactivityRenewDelay = user.getInactivityRenewDelayMs();
       let inactivityRenewDelayDate = new Date(inactivityRenewDelay);
@@ -191,10 +203,12 @@ let store = new Vuex.Store({
         console.debug("Define user");
         currentUser = user;
         state.user = user;
-        console.debug("Reset router");
-        state.openSilexRouter.resetRouter(state.user);
-        console.debug("Reset menu");
-        state.menu = Menu.fromMenuItemDTO(state.openSilexRouter.getMenu());
+        if (state.openSilexRouter) {
+          console.debug("Reset router");
+          state.openSilexRouter.resetRouter(state.user);
+          console.debug("Reset menu");
+          state.menu = Menu.fromMenuItemDTO(state.openSilexRouter.getMenu());
+        }
       }
     },
     logout(state) {
@@ -218,15 +232,21 @@ let store = new Vuex.Store({
       state.user = User.ANONYMOUS();
       getOpenSilexPlugin().clearCookie();
       state.disconnected = true;
-      console.debug("Reset router");
-      state.openSilexRouter.resetRouter(state.user);
-      console.debug("Reset menu");
-      state.menu = Menu.fromMenuItemDTO(state.openSilexRouter.getMenu());
+      if (state.openSilexRouter) {
+        console.debug("Reset router");
+        state.openSilexRouter.resetRouter(state.user);
+        console.debug("Reset menu");
+        state.menu = Menu.fromMenuItemDTO(state.openSilexRouter.getMenu());
+      }
     },
     setConfig(state, config: FrontConfigDTO) {
       state.config = config;
       state.openSilexRouter = new OpenSilexRouter(config.pathPrefix);
       state.openSilexRouter.setConfig(config);
+    },
+    setUserConfig(state, userConfig: UserFrontConfigDTO) {
+      state.userConfig = userConfig;
+      state.openSilexRouter.setUserConfig(userConfig);
     },
     showLoader(state) {
       if (loaderCount == 0) {
@@ -244,6 +264,21 @@ let store = new Vuex.Store({
       }
     },
     toggleMenu(state) {
+      setTimeout(function() {
+        if (typeof(Event) === 'function') {
+          // modern browsers
+          window.dispatchEvent(new Event('resize'));
+        } else {
+          // for IE and other old browsers
+          // causes deprecation warning on modern browsers
+          var evt = window.document.createEvent('UIEvents'); 
+          evt.initUIEvent('resize', true, false, window, 0); 
+          window.dispatchEvent(evt);
+        }
+      }, 500); // trigger the resize event to resize Highcharts container
+      state.menuVisible = !state.menuVisible;
+    },
+    toggleMenuOnSelect(state) {
       setTimeout(function() {
         if (typeof(Event) === 'function') {
           // modern browsers
@@ -286,6 +321,14 @@ let store = new Vuex.Store({
     },
     goBack(state) {
       state.previousPage.pop();
+    },
+    resetRouter(state) {
+      if (state.openSilexRouter) {
+        console.debug("Reset router");
+        state.openSilexRouter.resetRouter(state.user);
+        console.debug("Reset menu");
+        state.menu = Menu.fromMenuItemDTO(state.openSilexRouter.getMenu());
+      }
     }
   },
   actions: {

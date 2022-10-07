@@ -1,4 +1,27 @@
 <template>
+<div >
+        <div class="spaced-actions">
+          <opensilex-CreateButton
+            v-if="
+              user.hasCredential(
+                credentials.CREDENTIAL_INFRASTRUCTURE_MODIFICATION_ID
+              )
+            "
+            @click="createOrganization()"
+            label="InfrastructureTree.add"
+            class="createButton firstButton"
+          ></opensilex-CreateButton>
+          <opensilex-CreateButton
+            v-if="
+              user.hasCredential(
+                credentials.CREDENTIAL_INFRASTRUCTURE_MODIFICATION_ID
+              )
+            "
+            @click="createSite()"
+            label="InfrastructureTree.addSite"
+            class="createButton"
+          ></opensilex-CreateButton>
+        </div>
   <b-card>
     <!-- Card header -->
     <template v-slot:header>
@@ -7,22 +30,13 @@
         &nbsp;
         <font-awesome-icon
           icon="question-circle"
+          class="infrastructureHelp"
           v-b-tooltip.hover.top="$t('InfrastructureTree.infrastructure-help')"
         />
       </h3>
 
-      <div class="card-header-right">
-        <opensilex-CreateButton
-          v-if="
-            user.hasCredential(
-              credentials.CREDENTIAL_INFRASTRUCTURE_MODIFICATION_ID
-            )
-          "
-          @click="createInfrastructure()"
-          label="InfrastructureTree.add"
-        ></opensilex-CreateButton>
-      </div>
     </template>
+
     <!-- Card body -->
     <!-- Infrastructure filter -->
     <opensilex-StringFilter
@@ -31,21 +45,31 @@
       placeholder="InfrastructureTree.filter-placeholder"
     ></opensilex-StringFilter>
 
-    <opensilex-TreeView :nodes.sync="nodes" @select="displayNodesDetail">
+    <opensilex-TreeView
+        :nodes.sync="nodes"
+        @select="displayNodesDetail"
+        ref="treeView"
+    >
       <template v-slot:node="{ node }">
         <span class="item-icon">
           <opensilex-Icon
-            :icon="$opensilex.getRDFIcon(node.data.rdf_type)"
-          /> </span
-        >&nbsp;
-        <strong v-if="node.data.selected">{{ node.title }}</strong>
-        <span v-if="!node.data.selected">{{ node.title }}</span>
+              :icon="$opensilex.getRDFIcon(node.data.rdf_type)"
+          />
+        </span>&nbsp;
+        <strong v-if="node.data.selectedOrganization">{{ node.title }}</strong>
+        <span v-if="!node.data.selectedOrganization">{{ node.title }}</span>
+        <span class="tree-multiple-icon">
+          <opensilex-Icon
+              v-if="hasMultipleParents(node)"
+              icon="fa#project-diagram"
+              v-b-tooltip.hover.top="getMultipleParentsTooltip(node)" />
+        </span>
       </template>
 
       <template v-slot:buttons="{ node }">
         <opensilex-DetailButton
-          @click="showDetail(node.data.uri)"
-          label="InfrastructureTree.showDetail"
+          @click="showOrganizationOrSiteDetail(node.data)"
+          :label="node.data.isOrganization ? $t('InfrastructureTree.showDetail') : $t('InfrastructureTree.showDetailSite')"
           :small="true"
         ></opensilex-DetailButton>
         <opensilex-EditButton
@@ -54,26 +78,30 @@
               credentials.CREDENTIAL_INFRASTRUCTURE_MODIFICATION_ID
             )
           "
-          @click="editInfrastructure(node.data.uri)"
-          label="InfrastructureTree.edit"
+          @click="editOrganizationOrSite(node.data)"
+          :label="node.data.isOrganization ? $t('InfrastructureTree.edit') : $t('InfrastructureTree.editSite')"
           :small="true"
         ></opensilex-EditButton>
-        <opensilex-AddChildButton
-          v-if="
-            user.hasCredential(
-              credentials.CREDENTIAL_INFRASTRUCTURE_MODIFICATION_ID
-            )
-          "
-          @click="createInfrastructure(node.data.uri)"
-          label="InfrastructureTree.add-child"
-          :small="true"
-        ></opensilex-AddChildButton>
+        <opensilex-Dropdown
+            v-if="
+              user.hasCredential(
+                credentials.CREDENTIAL_INFRASTRUCTURE_MODIFICATION_ID
+              ) && node.data.isOrganization
+            "
+            @click="(option) => createOrganizationOrSite(option, node.data.uri)"
+            :small="true"
+            :options="createOptions"
+            icon="fa#plus"
+            variant="outline-success"
+            right
+        >
+        </opensilex-Dropdown>
         <opensilex-DeleteButton
           v-if="
             user.hasCredential(credentials.CREDENTIAL_INFRASTRUCTURE_DELETE_ID)
           "
-          @click="deleteInfrastructure(node.data.uri)"
-          label="InfrastructureTree.delete"
+          @click="deleteOrganizationOrSite(node.data)"
+          :label="node.data.isOrganization ? $t('InfrastructureTree.delete') : $t('InfrastructureTree.deleteSite')"
           :small="true"
         ></opensilex-DeleteButton>
       </template>
@@ -90,26 +118,88 @@
       createTitle="InfrastructureTree.add"
       editTitle="InfrastructureTree.update"
       icon="ik#ik-globe"
-      @onCreate="refresh($event.uri)"
-      @onUpdate="refresh($event.uri)"
-      :initForm="setParent"
+      @onCreate="onCreate"
+      @onUpdate="onUpdate"
+      :initForm="initOrganizationForm"
+    ></opensilex-ModalForm>
+    <opensilex-ModalForm
+        v-if="
+          user.hasCredential(
+            credentials.CREDENTIAL_INFRASTRUCTURE_MODIFICATION_ID
+          )
+        "
+        ref="siteForm"
+        component="opensilex-SiteForm"
+        createTitle="InfrastructureTree.addSite"
+        editTitle="InfrastructureTree.editSite"
+        icon="ik#ik-globe"
+        @onCreate="onCreate"
+        @onUpdate="onUpdate"
+        :initForm="initSiteForm"
+        :doNotHideOnError="true"
     ></opensilex-ModalForm>
   </b-card>
+</div>
 </template>
 
 <script lang="ts">
-import { Component, Prop, Ref } from "vue-property-decorator";
+import {Component, Ref} from "vue-property-decorator";
 import Vue from "vue";
-import HttpResponse, { OpenSilexResponse } from "../../lib/HttpResponse";
-// @ts-ignore
-import { OrganisationsService, ResourceTreeDTO, InfrastructureGetDTO } from "opensilex-core/index";
+import HttpResponse, {OpenSilexResponse} from "../../lib/HttpResponse";
+import {InfrastructureGetDTO, InfrastructureUpdateDTO, ResourceDagDTO, SiteGetDTO, SiteUpdateDTO} from "opensilex-core/index";
+import OpenSilexVuePlugin, {GenericTreeOption, TreeOption} from "../../models/OpenSilexVuePlugin";
+import ModalForm from "../common/forms/ModalForm.vue";
+import {DropdownButtonOption} from "../common/dropdown/Dropdown.vue";
+import {OrganizationsService} from "opensilex-core/api/organizations.service";
+import TreeView from "../common/views/TreeView.vue";
+import DTOConverter from "../../models/DTOConverter";
+
+type OrganizationOrSiteData = ResourceDagDTO & {
+  isOrganization: boolean,
+  isSite: boolean
+}
+
+interface OrganizationOrSiteTreeNode extends TreeOption<OrganizationOrSiteTreeNode> {
+  data: OrganizationOrSiteData
+}
+
+enum AddOption {
+  ADD_ORGANIZATION = "Add organization",
+  ADD_SITE= "Add site"
+}
 
 @Component
 export default class InfrastructureTree extends Vue {
-  $opensilex: any;
+  $opensilex: OpenSilexVuePlugin;
   $store: any;
   $route: any;
-  service: OrganisationsService;
+  service: OrganizationsService;
+
+  nodes: Array<OrganizationOrSiteTreeNode> = [];
+
+  parentURI: string;
+
+  private langUnwatcher;
+
+  private selectedOrganization: InfrastructureGetDTO;
+  private selectedSite: SiteGetDTO;
+
+  @Ref("infrastructureForm") readonly infrastructureForm!: ModalForm;
+  @Ref("siteForm") readonly siteForm!: ModalForm;
+  @Ref("treeView") readonly treeView: TreeView<OrganizationOrSiteData>;
+
+  private createOptions: Array<DropdownButtonOption> = [
+    {
+      label: this.$t("InfrastructureTree.add-child").toString(),
+      id: AddOption.ADD_ORGANIZATION,
+      data: AddOption.ADD_ORGANIZATION
+    },
+    {
+      label: this.$t("InfrastructureTree.addSite").toString(),
+      id: AddOption.ADD_SITE,
+      data: AddOption.ADD_SITE
+    }
+  ];
 
   get user() {
     return this.$store.state.user;
@@ -117,6 +207,17 @@ export default class InfrastructureTree extends Vue {
 
   get credentials() {
     return this.$store.state.credentials;
+  }
+
+  private hasMultipleParents(node: OrganizationOrSiteTreeNode) {
+    return node.data.parents.length > 1;
+  }
+
+  private getMultipleParentsTooltip(node: OrganizationOrSiteTreeNode) {
+    if (node.data.isOrganization) {
+      return this.$t("InfrastructureTree.organization-multiple-tooltip");
+    }
+    return this.$t("InfrastructureTree.site-multiple-tooltip");
   }
 
   private filter: any = "";
@@ -128,7 +229,7 @@ export default class InfrastructureTree extends Vue {
 
   created() {
     this.service = this.$opensilex.getService(
-      "opensilex-core.OrganisationsService"
+      "opensilex-core.OrganizationsService"
     );
 
     let query: any = this.$route.query;
@@ -139,13 +240,12 @@ export default class InfrastructureTree extends Vue {
     this.refresh();
   }
 
-  private langUnwatcher;
   mounted() {
     this.langUnwatcher = this.$store.watch(
       () => this.$store.getters.language,
       (lang) => {
-        if (this.selected != null) {
-          this.displayNodeDetail(this.selected.uri, true);
+        if (this.selectedOrganization != null) {
+          this.displayOrganizationDetail(this.selectedOrganization.uri, true);
         }
       }
     );
@@ -155,126 +255,292 @@ export default class InfrastructureTree extends Vue {
     this.langUnwatcher();
   }
 
-  refresh(uri?) {
-    this.service
-      .searchInfrastructuresTree(this.filter)
-      .then((http: HttpResponse<OpenSilexResponse<Array<ResourceTreeDTO>>>) => {
-        if (this.infrastructureForm && this.infrastructureForm.getFormRef()) {
-          if (this.filter == "") {
-            this.infrastructureForm
-              .getFormRef()
-              .setParentInfrastructures(http.response.result);
-          } else {
-            this.infrastructureForm.getFormRef().init();
-          }
-        }
-        let treeNode = [];
-        let first = true;
-        for (let i in http.response.result) {
-          let resourceTree: ResourceTreeDTO = http.response.result[i];
-          let node = this.dtoToNode(resourceTree, first, uri);
-          treeNode.push(node);
+  refresh(uri?): Promise<void> {
+    return Promise.all([
+      this.fetchOrganizationsAsTree(),
+      this.fetchSites()
+    ]).then(result => {
+      let tree: Array<GenericTreeOption> = result[0];
+      let sites: Array<SiteGetDTO> = result[1];
 
-          if (first && uri == null) {
-            this.displayNodeDetail(node.data.uri, true);
-            first = false;
-          }
-        }
+      // Keep no selection
+      this.selectedOrganization = undefined;
+      this.selectedSite = undefined;
 
-        if (uri != null) {
-          this.displayNodeDetail(uri, true);
-        }
+      this.nodes = this.appendSitesToTree(tree, sites);
 
-        if (http.response.result.length == 0) {
-          this.selected = null;
-        }
-
-        this.nodes = treeNode;
-      })
-      .catch(this.$opensilex.errorHandler);
+      if (uri) {
+        this.selectFirstNode(node => node.data.uri === uri);
+      } else {
+        this.$emit("onSelect");
+      }
+    }).catch(this.$opensilex.errorHandler);
   }
 
-  private dtoToNode(dto: ResourceTreeDTO, first: boolean, uri: string) {
-    let isLeaf = dto.children.length == 0;
+  /**
+   * Programmatically select the first node that matches the given predicate.
+   *
+   * @param predicate
+   * @param currentNode The node to explore with its children. If not specified, all nodes will be explored.
+   */
+  selectFirstNode(predicate: (node: OrganizationOrSiteTreeNode) => boolean, currentNode?: OrganizationOrSiteTreeNode): OrganizationOrSiteTreeNode {
+    // If no current node is given, apply the method on each root node
+    if (!currentNode) {
+      for (let node of this.nodes) {
+        let result = this.selectFirstNode(predicate, node);
+        if (result) {
+          return result;
+        }
+      }
+      return undefined;
+    }
 
-    let childrenDTOs = [];
-    if (!isLeaf) {
-      for (let i in dto.children) {
-        childrenDTOs.push(this.dtoToNode(dto.children[i], false, uri));
+    // Test the predicate against the current node
+    if (predicate(currentNode)) {
+      // Select it
+      currentNode.isSelected = true;
+      this.displayNodesDetail(currentNode);
+      return currentNode;
+    }
+
+    // Test the predicate against the children
+    if (currentNode.children) {
+      for (let node of currentNode.children) {
+        let result = this.selectFirstNode(predicate, node);
+        if (result) {
+          return result;
+        }
       }
     }
+    return undefined;
+  }
 
-    let isSeleted = first && uri == null;
-    if (uri != null) {
-      isSeleted = uri == dto.uri;
+  private async fetchOrganizationsAsTree(): Promise<Array<GenericTreeOption>> {
+    try {
+      let orgHttp: HttpResponse<OpenSilexResponse<Array<ResourceDagDTO>>> = await this.service.searchInfrastructures(this.filter);
+
+      if (this.infrastructureForm && this.infrastructureForm.getFormRef()) {
+        if (this.filter == "") {
+          this.infrastructureForm
+              .getFormRef()
+              .setParentInfrastructures(orgHttp.response.result);
+        } else {
+          this.infrastructureForm.getFormRef().init();
+        }
+      }
+
+      return this.$opensilex.buildTreeFromDag(orgHttp.response.result, {});
+    } catch (e) {
+      this.$opensilex.errorHandler(e);
+      throw e;
     }
-    return {
-      title: dto.name,
-      data: dto,
-      isLeaf: isLeaf,
-      children: childrenDTOs,
-      isExpanded: true,
-      isSelected: isSeleted,
-      isDraggable: false,
-      isSelectable: true,
-    };
   }
 
-  public nodes = [];
-
-  private selected: InfrastructureGetDTO;
-
-  public displayNodesDetail(node: any) {
-    this.displayNodeDetail(node.data.uri);
+  private async fetchSites(): Promise<Array<SiteGetDTO>> {
+    return (await this.service.searchSites(this.filter)).response.result;
   }
 
-  public displayNodeDetail(uri: string, forceRefresh?: boolean) {
-    if (forceRefresh || this.selected == null || this.selected.uri != uri) {
+  private appendSitesToTree(tree: Array<GenericTreeOption>, sites: Array<SiteGetDTO>): Array<OrganizationOrSiteTreeNode> {
+    return this.$opensilex.mapTree<GenericTreeOption, OrganizationOrSiteTreeNode>(tree, (node, mappedChildren) => {
+      let orgNode: OrganizationOrSiteTreeNode = {
+        ...node,
+        children: mappedChildren,
+        data: {
+          ...node.data,
+          isOrganization: true,
+          isSite: false
+        }
+      };
+
+      for (let site of sites) {
+        for (let org of site.organizations) {
+          if (org.uri === orgNode.id) {
+            if (!Array.isArray(orgNode.children)) {
+              orgNode.children = [];
+            }
+            let siteNodeData: OrganizationOrSiteData = {
+              isSite: true,
+              isOrganization: false,
+              uri: site.uri,
+              name: site.name,
+              rdf_type: site.rdf_type,
+              rdf_type_name: site.rdf_type_name,
+              children: [],
+              parents: site.organizations.map(org => org.uri)
+            };
+            let siteNode: OrganizationOrSiteTreeNode = {
+              id: site.uri,
+              children: [],
+              isDefaultExpanded: true,
+              isExpanded: true,
+              isDisabled: false,
+              isLeaf: true,
+              label: site.name,
+              data: siteNodeData,
+              title: site.name,
+              isSelectable: true
+            };
+            orgNode.isLeaf = false;
+            orgNode.children.push(siteNode);
+          }
+        }
+      }
+
+      return orgNode;
+    });
+  }
+
+  public displayNodesDetail(node: OrganizationOrSiteTreeNode) {
+    if (node.data.isOrganization) {
+      this.displayOrganizationDetail(node.data.uri);
+    } else if (node.data.isSite) {
+      this.displaySiteDetail(node.data.uri);
+    }
+  }
+
+  public displayOrganizationDetail(uri: string, forceRefresh?: boolean) {
+    if (forceRefresh || this.selectedOrganization == null || this.selectedOrganization.uri != uri) {
       return this.service
         .getInfrastructure(uri)
         .then((http: HttpResponse<OpenSilexResponse<InfrastructureGetDTO>>) => {
           let detailDTO: InfrastructureGetDTO = http.response.result;
-          this.selected = detailDTO;
+          this.selectedOrganization = detailDTO;
+          this.selectedSite = undefined;
           this.$emit("onSelect", detailDTO);
         });
     }
   }
 
-  @Ref("infrastructureForm") readonly infrastructureForm!: any;
+  public displaySiteDetail(uri: string, forceRefresh?: boolean) {
+    if (forceRefresh || this.selectedOrganization == null || this.selectedOrganization.uri != uri) {
+      return this.service
+        .getSite(uri)
+        .then((http: HttpResponse<OpenSilexResponse<SiteGetDTO>>) => {
+          let siteDto = http.response.result;
+          this.selectedSite = siteDto;
+          this.selectedOrganization = undefined;
+          this.$emit("onSelect", siteDto);
+        });
+    }
+  }
 
-  showDetail(uri) {
+  showOrganizationOrSiteDetail(siteOrOrg: OrganizationOrSiteData) {
+    if (siteOrOrg.isOrganization) {
+      this.showOrganizationDetail(siteOrOrg.uri);
+    } else if (siteOrOrg.isSite) {
+      this.showSiteDetail(siteOrOrg.uri);
+    }
+  }
+
+  editOrganizationOrSite(siteOrOrg: OrganizationOrSiteData) {
+    if (siteOrOrg.isOrganization) {
+      this.editOrganization(siteOrOrg.uri);
+    } else if (siteOrOrg.isSite) {
+      this.editSite(siteOrOrg.uri);
+    }
+  }
+
+  deleteOrganizationOrSite(siteOrOrg: OrganizationOrSiteData) {
+    if (siteOrOrg.isOrganization) {
+      this.deleteOrganization(siteOrOrg.uri);
+    } else if (siteOrOrg.isSite) {
+      this.deleteSite(siteOrOrg.uri);
+    }
+  }
+
+  showOrganizationDetail(uri) {
     this.$router.push({
       path: "/infrastructure/details/" + encodeURIComponent(uri),
     });
   }
 
-  parentURI;
-  createInfrastructure(parentURI?) {
+  createOrganizationOrSite(option: DropdownButtonOption, uri?: string) {
+    if (option.data === AddOption.ADD_ORGANIZATION) {
+      this.createOrganization(uri);
+    } else if (option.data === AddOption.ADD_SITE) {
+      this.createSite(uri);
+    }
+  }
+
+  createOrganization(parentURI?) {
     this.parentURI = parentURI;
     this.infrastructureForm.showCreateForm();
   }
 
-  editInfrastructure(uri) {
+  editOrganization(uri) {
     this.service
       .getInfrastructure(uri)
       .then((http: HttpResponse<OpenSilexResponse<InfrastructureGetDTO>>) => {
         let detailDTO: InfrastructureGetDTO = http.response.result;
-        this.parentURI = detailDTO.parent;
-        this.infrastructureForm.showEditForm(detailDTO);
+        this.parentURI = Array.isArray(detailDTO.parents) && detailDTO.parents.length > 0
+          ? detailDTO.parents[0].uri
+          : undefined;
+
+        let editDTO: InfrastructureUpdateDTO = DTOConverter.extractURIFromResourceProperties(detailDTO);
+        this.infrastructureForm.showEditForm(editDTO);
       });
   }
 
-  deleteInfrastructure(uri: string) {
+  deleteOrganization(uri: string) {
     this.service
       .deleteInfrastructure(uri)
       .then(() => {
+        this.$emit("onDelete");
         this.refresh();
       })
       .catch(this.$opensilex.errorHandler);
   }
 
-  setParent(form) {
-    form.parent = this.parentURI;
+  showSiteDetail(uri) {
+    this.$router.push({
+      path: "/infrastructure/site/details/" + encodeURIComponent(uri),
+    });
+  }
+
+  createSite(parentURI?: string) {
+    this.parentURI = parentURI;
+    this.siteForm.showCreateForm();
+  }
+
+  editSite(uri) {
+    this.service
+        .getSite(uri)
+        .then((http: HttpResponse<OpenSilexResponse<SiteGetDTO>>) => {
+          let editDTO: SiteUpdateDTO = DTOConverter.extractURIFromResourceProperties(http.response.result);
+          this.siteForm.showEditForm(editDTO);
+        });
+  }
+
+  deleteSite(uri) {
+    this.service
+        .deleteSite(uri)
+        .then(() => {
+          this.$emit("onDelete");
+          this.refresh();
+        })
+        .catch(this.$opensilex.errorHandler);
+  }
+
+  initOrganizationForm(form) {
+    form.parents = [this.parentURI];
+  }
+
+  initSiteForm(form) {
+    if (this.parentURI) {
+      form.organizations = [this.parentURI];
+    }
+  }
+
+  onCreate() {
+    let selectedNode = this.treeView.getSelectedNode();
+    this.refresh(selectedNode?.uri);
+    this.$emit("onCreate");
+  }
+
+  onUpdate() {
+    let selectedNode = this.treeView.getSelectedNode();
+    this.refresh(selectedNode?.uri);
+    this.$emit("onCreate");
   }
 }
 </script>
@@ -286,16 +552,42 @@ export default class InfrastructureTree extends Vue {
   overflow-y: auto;
 }
 
+::v-deep .sl-vue-tree-nodes-list {
+  overflow: visible;
+}
+
 .leaf-spacer {
   display: inline-block;
   width: 23px;
 }
+.infrastructureHelp{
+  font-size: 1.3em;
+  background: #f1f1f1;
+  color: #00A38D;
+  border-radius: 50%;
+}
+
 
 @media (max-width: 768px) {
   .sl-vue-tree-root {
     min-height: auto;
   }
 }
+
+.tree-multiple-icon {
+  padding-left: 8px;
+  color: #3cc6ff;
+}
+
+.spaced-actions {
+  margin-top: -15px;
+  margin-bottom: 10px;
+}
+
+.firstButton {
+  margin-right: 10px;
+}
+
 </style>
 
 <i18n>
@@ -306,19 +598,33 @@ en:
     update: Update organization
     edit: Edit organization
     add-child: Add sub-organization
+    addSite: Add site
+    editSite: Edit site
     delete: Delete organization
-    infrastructure-component: Organizations
+    deleteSite: Delete site
+    infrastructure-component: Organizations and sites
     infrastructure-help: "The organizations represent the hierarchy between the different sites, units, ... with a specific address and / or with dedicated teams."
     showDetail: Organization details
+    showDetailSite: Site details
+    organization-multiple-tooltip: "This organization has several parent organizations"
+    site-multiple-tooltip: "This site hosts several organizations"
 fr:
   InfrastructureTree:
     filter-placeholder: Rechercher des organisations...
     add: Ajouter une organisation
     update: Modifier l'organisation
     edit: Editer l'organisation
-    add-child:  Ajouter une sous-organisation
+    add-child: Ajouter une sous-organisation
+    addSite: Ajouter un site
+    editSite: Editer le site
     delete: Supprimer l'organisation
-    infrastructure-component: Organisations
+    deleteSite: Supprimer le site
+    infrastructure-component: Organisations et sites
     infrastructure-help: "Les organisations représentent la hiérarchie entre les différents sites, unités, ... disposant d'une adresse particulière et/ou avec des équipes dédiées."
     showDetail: Détail de l'organisation
+    showDetailSite: Détail du site
+    organization-multiple-tooltip: "Cette organisation a plusieurs organisations parentes"
+    site-multiple-tooltip: "Ce site héberge plusieurs organisations"
+
+
 </i18n>

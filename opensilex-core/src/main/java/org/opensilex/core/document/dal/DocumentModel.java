@@ -6,24 +6,17 @@
 //******************************************************************************
 package org.opensilex.core.document.dal;
 
-import java.net.URI;
-import java.time.LocalDate;
-import java.util.List;
-import java.util.ArrayList;
-import java.nio.file.*;
-import org.apache.jena.vocabulary.OWL2;
-import org.apache.jena.vocabulary.RDFS;
-import org.apache.jena.vocabulary.RDF;
-import org.opensilex.core.ontology.Oeso;
-import org.apache.jena.vocabulary.OA;
 import org.apache.jena.vocabulary.DCTerms;
-import org.opensilex.sparql.model.SPARQLTreeModel;
+import org.apache.jena.vocabulary.OA;
+import org.apache.jena.vocabulary.OWL2;
+import org.opensilex.core.ontology.Oeso;
 import org.opensilex.sparql.annotations.SPARQLProperty;
 import org.opensilex.sparql.annotations.SPARQLResource;
-import org.opensilex.sparql.model.SPARQLLabel;
 import org.opensilex.sparql.model.SPARQLResourceModel;
-import org.opensilex.sparql.annotations.SPARQLTypeRDF;
-import org.opensilex.sparql.utils.ClassURIGenerator;
+import org.opensilex.uri.generation.ClassURIGenerator;
+
+import java.net.URI;
+import java.util.List;
 
 
 /**
@@ -32,10 +25,12 @@ import org.opensilex.sparql.utils.ClassURIGenerator;
 @SPARQLResource(
         ontology = Oeso.class,
         resource = "Document",
-        graph = "set/documents",
+        graph = DocumentModel.GRAPH,
         prefix = "doc"
 )
 public class DocumentModel extends SPARQLResourceModel implements ClassURIGenerator<DocumentModel> {
+
+    public static final String GRAPH = "document";
 
     @SPARQLProperty(
             ontology = OA.class,
@@ -108,6 +103,13 @@ public class DocumentModel extends SPARQLResourceModel implements ClassURIGenera
     )
     String identifier;
     public static final String IDENTIFIER_FIELD = "identifier";
+
+    @SPARQLProperty(
+        ontology = DCTerms.class,
+        property = "source"
+    )
+    URI source;
+    public static final String SOURCE_FIELD = "source";
 
     public List<URI> getTargets() {
         return targets;
@@ -189,8 +191,16 @@ public class DocumentModel extends SPARQLResourceModel implements ClassURIGenera
         this.identifier = identifier;
     }
 
+    public URI getSource() {
+        return source;
+    }
+
+    public void setSource(URI source) {
+        this.source = source;
+    }
+
     @Override
-    public String[] getUriSegments(DocumentModel instance) {
+    public String[] getInstancePathSegments(DocumentModel instance) {
         return new String[]{
             instance.getTitle()
         };

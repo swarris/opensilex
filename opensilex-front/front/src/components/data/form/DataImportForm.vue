@@ -24,10 +24,11 @@
           @select="loadProvenanceAndCheckUploadedData"
           @clear="reset()"
           :multiple="false"
-          :actionHandler="showProvenanceCreateForm"
+          :actionHandler="user.hasCredential(credentials.CREDENTIAL_PROVENANCE_MODIFICATION_ID)
+            ? showProvenanceCreateForm
+            : undefined"
           :viewHandler="showProvenanceDetails"
           :viewHandlerDetailsVisible="visibleDetails"
-          :showURI="false"
           :required="true"
         ></opensilex-ProvenanceSelector>
         <b-collapse id="collapse-4" v-model="visibleDetails" class="mt-2">
@@ -80,9 +81,8 @@
           </b-col>
           <b-col cols="2">
             <opensilex-Button
-              variant="secondary"
               @click="templateForm.show()"
-              class="mr-2"
+              class="mr-2 greenThemeColor"
               :small="false"
               icon
               label="DataView.buttons.generate-template"
@@ -312,33 +312,16 @@ export default class DataImportForm extends Vue {
       } else {
         let promise;
 
-        if (this.form.experiment != null) {
-          promise = this.$opensilex
-            .uploadFileToService(
-              "/core/experiments/" +
-              encodeURIComponent(this.form.experiment) +
-              "/data/import",
-              {
-                file: this.form.dataFile
-              },
-              {
-                experiments: this.experiments,
-                provenance: this.form.provenance.uri
-              }
-            )
-        } else {
-          promise = this.$opensilex
-            .uploadFileToService(
-              "/core/data/import",
-              {
-                file: this.form.dataFile
-              },
-              {
-                experiments: this.experiments,
-                provenance: this.form.provenance.uri
-              }
-            )
-        }
+        promise = this.$opensilex.uploadFileToService(
+          "/core/data/import",
+          {
+            file: this.form.dataFile,
+          },
+          {
+            provenance: this.form.provenance.uri,
+            experiment: this.form.experiment ? this.form.experiment : null,
+          }
+        );
 
         return promise
           .then((data) => {
@@ -375,14 +358,13 @@ export default class DataImportForm extends Vue {
                 }
               }
             }
-          })
-          .catch((e) => {
+          }).catch((e) => {
             console.error(e);
-          });
+            this.$opensilex.errorHandler(e);
+        });
       }
     });
   }
-
   reset() {
     this.resetProvenanceForm();
     this.resetValidationPart();
@@ -423,45 +405,22 @@ export default class DataImportForm extends Vue {
       this.duplicatedData = [];
       this.tooLargeDataset = false;
 
-      if (this.form.experiment != null) {
-        return this.$opensilex
-          .uploadFileToService(
-            "/core/experiments/" +
-            encodeURIComponent(this.form.experiment) +
-            "/data/import_validation",
-            {
-              file: this.form.dataFile
-            },
-            {
-              provenance: this.form.provenance.uri
-            }
-          )
-          .then((response) => {
-            this.checkCSVValidation(response);
-            this.$opensilex.disableLoader();
-          })
-          .catch((e) => {
-            console.error(e);
-          });
-      } else {
-        return this.$opensilex
-          .uploadFileToService(
-            "/core/data/import_validation",
-            {
-              file: this.form.dataFile
-            },
-            {
-              provenance: this.form.provenance.uri
-            }
-          )
-          .then((response) => {
-            this.checkCSVValidation(response);
-            this.$opensilex.disableLoader();
-          })
-          .catch((e) => {
-            console.error(e);
-          });
-      }
+     return this.$opensilex
+        .uploadFileToService(
+          "/core/data/import_validation",
+          {
+            file: this.form.dataFile,
+          },
+          {
+            provenance: this.form.provenance.uri,
+            experiment: this.form.experiment ? this.form.experiment : null,
+          }
+        )
+        .then((response) => {
+          this.checkCSVValidation(response);
+          this.$opensilex.disableLoader();
+        })
+        .catch(this.$opensilex.errorHandler);
       
     } else {
       if (this.validationReport != undefined) {

@@ -1,110 +1,171 @@
 <template>
-  <div class="row">
-    <div class="col col-xl-12">
-      <opensilex-Card icon>
-        <template v-slot:header>
-          <opensilex-CreateButton
-            v-if="user.hasCredential(credentials.CREDENTIAL_DATA_MODIFICATION_ID) && user.hasCredential(credentials.CREDENTIAL_EXPERIMENT_MODIFICATION_ID)"
-            @click="dataForm.showCreateForm()"
-            label="OntologyCsvImporter.import"
-          ></opensilex-CreateButton>
-        </template>
-        <template v-slot:body>
-          <opensilex-SearchFilterField
-            ref="searchField"
-            :withButton="true"
-            label="DataView.filter.label"
-            @search="refresh()"
-            @clear="clear()"
-          >
-            <template v-slot:filters>
-              <!-- Variables -->
-              <opensilex-FilterField halfWidth="true">
-                <opensilex-UsedVariableSelector
-                label="DataView.filter.variables"
-                :multiple="true"
-                :variables.sync="filter.variables"
-                :experiment="uri"
-                :key="refreshKey"
-                ></opensilex-UsedVariableSelector>
-              </opensilex-FilterField>
-            
-              <!-- Scientific objects -->
-              <opensilex-FilterField halfWidth="true">
-                <opensilex-SelectForm
-                  ref="soSelector"
-                  label="DataView.filter.scientificObjects"
-                  placeholder="DataView.filter.scientificObjects-placeholder"
-                  :selected.sync="filter.scientificObjects"
-                  :conversionMethod="soGetDTOToSelectNode"
-                  modalComponent="opensilex-ScientificObjectModalListByExp"
-                  :itemLoadingMethod="loadSO"
-                  :filter.sync="soFilter"
-                  :isModalSearch="true"
-                  :clearable="true"
-                  :multiple="true"
-                  @clear="refreshSoSelector"
-                  @select="refreshProvComponent"
-                ></opensilex-SelectForm>
-              </opensilex-FilterField>
+  <div>
+    <opensilex-PageActions>
+      <opensilex-CreateButton
+        v-if="user.hasCredential(credentials.CREDENTIAL_DATA_MODIFICATION_ID)"
+        @click="dataForm.showCreateForm()"
+        label="OntologyCsvImporter.import"
+        class="greenThemeColor createButton"
+      ></opensilex-CreateButton>
+      
+      <b-button
+        @click="exportModal.show()"
+        class="exportButton greenThemeColor createButton"
+      >
+        export
+      </b-button>
+    </opensilex-PageActions>
 
-              <opensilex-FilterField>
+    <opensilex-DataExportModal
+      ref="exportModal"
+      :filter="filter"
+    ></opensilex-DataExportModal>
+
+    <template>
+      <opensilex-PageContent class="pagecontent">
+        <!-- Toggle Sidebar--> 
+        <div class="searchMenuContainer"
+          v-on:click="SearchFiltersToggle = !SearchFiltersToggle"
+          :title="searchFiltersPannel()">
+          <div class="searchMenuIcon">
+            <i class="icon ik ik-search"></i>
+          </div>
+        </div>
+
+        <!-- FILTERS -->
+        <Transition>
+          <div v-show="SearchFiltersToggle">
+
+            <opensilex-SearchFilterField
+              ref="searchField"
+              :withButton="true"
+              label="DataView.filter.label"
+              @search="refresh()"
+              @clear="clear()"
+              :showAdvancedSearch="true"
+              class="searchFilterField"
+            >
+              <template v-slot:filters>
+                <!-- targets -->
+                <div>
+                  <opensilex-FilterField halfWidth="true">
+                    <opensilex-TagInputForm
+                      class="overflow-auto searchFilter"                  
+                      :value.sync="filter.targets"
+                      label="DataView.filter.targets"
+                      helpMessage="DataView.filter.targets-help"
+                      type="text"
+                    ></opensilex-TagInputForm>
+                  </opensilex-FilterField>
+                </div>
+
+                <!-- Scientific objects -->
+                <div>
+                  <opensilex-FilterField halfWidth="true">
+                    <opensilex-SelectForm
+                      ref="soSelector"
+                      label="DataView.filter.scientificObjects"
+                      placeholder="DataView.filter.scientificObjects-placeholder"
+                      :selected.sync="filter.scientificObjects"
+                      modalComponent="opensilex-ScientificObjectModalListByExp"
+                      :filter.sync="soFilter"
+                      :isModalSearch="true"
+                      :clearable="true"
+                      :multiple="true"
+                      @clear="refreshSoSelector"
+                      @onValidate="refreshProvComponent"
+                      @onClose="refreshProvComponent"
+                      :limit="1"
+                      class="searchFilter"
+                    ></opensilex-SelectForm>
+                  </opensilex-FilterField>
+                </div>
+
+                <!-- Variables -->
+                <div>
+                  <opensilex-FilterField halfWidth="true">
+                    <opensilex-VariableSelectorWithFilter
+                      placeholder="VariableSelector.placeholder-multiple"
+                      :variables.sync="filter.variables"
+                      :experiment="[uri]"
+                      :withAssociatedData="true"
+                      class="searchFilter"
+                    ></opensilex-VariableSelectorWithFilter>
+                  </opensilex-FilterField>
+                </div>
+
+                <!-- Provenance -->
+                <div>
+                  <opensilex-FilterField halfWidth="true" >
+                    <opensilex-DataProvenanceSelector
+                      ref="provSelector"
+                      :provenances.sync="filter.provenance"
+                      label="ExperimentData.provenance"
+                      @select="loadProvenance"
+                      :experiments="[uri]"
+                      :targets="filter.scientificObjects"
+                      :multiple="false"
+                      :viewHandler="showProvenanceDetails"
+                      :viewHandlerDetailsVisible="visibleDetails"
+                      :key="refreshKey"
+                      class="searchFilter"
+                    ></opensilex-DataProvenanceSelector>
+
+                    <b-collapse
+                      v-if="selectedProvenance"
+                      id="collapse-4"
+                      v-model="visibleDetails"
+                      class="mt-2"
+                    >
+                      <opensilex-ProvenanceDetails
+                        :provenance="getSelectedProv"
+                      ></opensilex-ProvenanceDetails>
+                    </b-collapse>
+                  </opensilex-FilterField>
+                </div>
+              </template>
+
+              <template v-slot:advancedSearch>
                 <!-- Start Date -->
-                <opensilex-DateTimeForm
-                    :value.sync="filter.start_date"
-                    label="component.common.begin"
-                    name="startDate"
-                    :max-date="filter.end_date ? filter.end_date : undefined"                
-                ></opensilex-DateTimeForm>
-              </opensilex-FilterField>
+                <div>  
+                  <opensilex-FilterField>
+                    <opensilex-DateTimeForm
+                      :value.sync="filter.start_date"
+                      label="component.common.begin"
+                      name="startDate"
+                      :max-date="filter.end_date ? filter.end_date : undefined"
+                      class="searchFilter"
+                    ></opensilex-DateTimeForm>
+                  </opensilex-FilterField>
+                </div>
 
-              <opensilex-FilterField>
                 <!-- End Date -->
-                <opensilex-DateTimeForm
-                    :value.sync="filter.end_date"
-                    label="component.common.end"
-                    name="endDate"
-                    :min-date="filter.start_date ? filter.start_date : undefined"
-                ></opensilex-DateTimeForm>
-              </opensilex-FilterField>
-
-              <!-- Provenance -->
-              <opensilex-FilterField halfWidth="true">
-
-                 <opensilex-DataProvenanceSelector
-                   ref="provSelector"
-                   :provenances.sync="filter.provenance"
-                   label="ExperimentData.provenance"
-                   @select="loadProvenance"
-                   :experiments="[uri]"
-                   :targets="filter.scientificObjects"
-                   :multiple="false"
-                   :viewHandler="showProvenanceDetails"
-                   :viewHandlerDetailsVisible="visibleDetails"
-                   :showURI="false"
-                   :key="refreshKey"
-                 ></opensilex-DataProvenanceSelector>
-
-                <b-collapse
-                  v-if="selectedProvenance"
-                  id="collapse-4"
-                  v-model="visibleDetails"
-                  class="mt-2"
-                >
-                  <opensilex-ProvenanceDetails
-                    :provenance="getSelectedProv"
-                  ></opensilex-ProvenanceDetails>
-                </b-collapse>
-              </opensilex-FilterField>
-            </template>
-          </opensilex-SearchFilterField>
-          <opensilex-DataList
-            ref="dataList"
-            :listFilter.sync="filter">
-          </opensilex-DataList>
-        </template>
-      </opensilex-Card>
-    </div>
+                <div>
+                  <opensilex-FilterField>
+                    <opensilex-DateTimeForm
+                      :value.sync="filter.end_date"
+                      label="component.common.end"
+                      name="endDate"
+                      :min-date="filter.start_date ? filter.start_date : undefined"
+                      class="searchFilter"
+                    ></opensilex-DateTimeForm>
+                  </opensilex-FilterField>
+                </div>
+              </template>
+            </opensilex-SearchFilterField>
+          </div>
+        </Transition>
+        <div class="card">
+          <div class="card-body">
+            <opensilex-DataList
+              ref="dataList"
+              :listFilter.sync="filter"
+              class="dataList">
+            </opensilex-DataList>
+          </div>
+        </div>
+      </opensilex-PageContent>
+    </template>
 
     <opensilex-ModalForm
       ref="dataForm"
@@ -118,18 +179,19 @@
       :successMessage="successMessage"
     ></opensilex-ModalForm>
 
-    <opensilex-ResultModalView ref="resultModal" @onHide="refreshDataAfterImportation()"> </opensilex-ResultModalView>
+    <opensilex-ResultModalView
+      ref="resultModal"
+      @onHide="refreshDataAfterImportation()"
+    >            
+    </opensilex-ResultModalView>
   </div>
 </template>
 
 <script lang="ts">
 import { Component, Ref } from "vue-property-decorator";
 import Vue from "vue";
-// @ts-ignore
-import { ProvenanceGetDTO } from "opensilex-core/index";
-// @ts-ignore
+import { ProvenanceGetDTO, ScientificObjectNodeDTO } from "opensilex-core/index";
 import HttpResponse, { OpenSilexResponse } from "opensilex-core/HttpResponse";
-import {ScientificObjectNodeDTO} from "opensilex-core/model/scientificObjectNodeDTO";
 
 @Component
 export default class ExperimentData extends Vue {
@@ -149,7 +211,8 @@ export default class ExperimentData extends Vue {
     provenance: null,
     variables: [],
     experiments: [this.uri],
-    scientificObjects: []
+    scientificObjects: [],
+    targets: []
   };
 
   soFilter = {
@@ -162,12 +225,20 @@ export default class ExperimentData extends Vue {
     creationDate: undefined,
   };
 
+  data(){
+    return {
+      SearchFiltersToggle : false,
+    }
+  }
+
   @Ref("dataList") readonly dataList!: any;
   @Ref("dataForm") readonly dataForm!: any;
   @Ref("searchField") readonly searchField!: any;
   @Ref("provSelector") readonly provSelector!: any;
   @Ref("resultModal") readonly resultModal!: any;
   @Ref("soSelector") readonly soSelector!: any;
+  @Ref("varSelector") readonly varSelector!: any;
+  @Ref("exportModal") readonly exportModal!: any;
 
   get credentials() {
     return this.$store.state.credentials;
@@ -176,8 +247,8 @@ export default class ExperimentData extends Vue {
   get user() {
     return this.$store.state.user;
   }
-  
-  refreshProvComponent(){
+
+  refreshProvComponent() {
     this.refreshKey += 1;
   }
 
@@ -193,7 +264,7 @@ export default class ExperimentData extends Vue {
       types: [],
       existenceDate: undefined,
       creationDate: undefined,
-    };
+    };  
   }
 
   resetFilters() {
@@ -203,24 +274,16 @@ export default class ExperimentData extends Vue {
       provenance: null,
       variables: [],
       experiments: [this.uri],
-      scientificObjects: []
+      scientificObjects: [],
+      targets: []
     };
     // Only if search and reset button are use in list
   }
 
   refreshSoSelector() {
     
-    this.soFilter = {
-      name: "",
-      experiment: this.uri,
-      germplasm: undefined,
-      factorLevels: [],
-      types: [],
-      existenceDate: undefined,
-      creationDate: undefined,
-    };
-    this.refreshProvComponent();
     this.soSelector.refreshModalSearch();
+    this.refreshProvComponent();
   }
 
   successMessage(form) {
@@ -231,13 +294,13 @@ export default class ExperimentData extends Vue {
     return this.selectedProvenance;
   }
 
-  refreshDataAfterImportation(){
-    this.loadProvenance({id: this.filter.provenance})
+  refreshDataAfterImportation() {
+    this.loadProvenance({ id: this.filter.provenance });
     this.refresh();
   }
 
   afterCreateData(results) {
-    if(results instanceof Promise){
+    if (results instanceof Promise) {
       results.then((res) => {
         this.resultModal.setNbLinesImported(
           res.validation.dataErrors.nbLinesImported
@@ -248,9 +311,9 @@ export default class ExperimentData extends Vue {
         this.filter.provenance = res.form.provenance.uri;
         this.refreshVariables();
         this.refreshKey += 1;
-        this.loadProvenance({id:res.form.provenance.uri})
+        this.loadProvenance({ id: res.form.provenance.uri });
       });
-    }else{ 
+    } else {
       this.resultModal.setNbLinesImported(
         results.validation.dataErrors.nbLinesImported
       );
@@ -259,10 +322,9 @@ export default class ExperimentData extends Vue {
       this.clear();
       this.filter.provenance = results.form.provenance.uri;
       this.refreshVariables();
-      this.refreshKey  += 1;
-      this.loadProvenance({id:results.form.provenance.uri}) 
+      this.refreshKey += 1;
+      this.loadProvenance({ id: results.form.provenance.uri });
     }
-    
   }
 
   initFormData(form) {
@@ -334,26 +396,48 @@ export default class ExperimentData extends Vue {
   }
 
   loadSO(scientificObjectsURIs) {
-    return this.$opensilex.getService("opensilex.ScientificObjectsService")
-      .getScientificObjectsListByUris(undefined,scientificObjectsURIs)
-      .then((http: HttpResponse<OpenSilexResponse<Array<ScientificObjectNodeDTO>>>) => {
-          return (http && http.response) ? http.response.result : undefined
-    }).catch(this.$opensilex.errorHandler);
+    const sos = scientificObjectsURIs.filter((x, i, a) => a.indexOf(x) == i); // distinct element on array
+    return this.$opensilex
+      .getService("opensilex.ScientificObjectsService")
+      .getScientificObjectsListByUris(this.uri, sos)
+      .then(
+        (
+          http: HttpResponse<OpenSilexResponse<Array<ScientificObjectNodeDTO>>>
+        ) => {
+          return http && http.response ? http.response.result : undefined;
+        }
+      )
+      .catch(this.$opensilex.errorHandler);
   }
 
   soGetDTOToSelectNode(dto) {
     if (dto) {
       return {
         id: dto.uri,
-        label: dto.name
+        label: dto.name,
       };
     }
     return null;
+  }
+
+  searchFiltersPannel() {
+    return  this.$t("searchfilter.label")
   }
 }
 </script>
 
 <style scoped lang="scss">
+
+.pagecontent {
+ margin-top: 10px
+}
+
+.createButton {
+  margin-top: 10px;
+}
+.card-body {
+  margin-bottom: -15px;
+}
 </style>
 
 <i18n>

@@ -48,6 +48,7 @@ public class Oeso {
     // ---- VARIABLES ----
     public static final Resource Variable = Ontology.resource(NS, "Variable");
     public static final Resource Entity = Ontology.resource(NS, "Entity");
+    public static final Resource EntityOfInterest = Ontology.resource(NS, "EntityOfInterest");
     public static final Resource Characteristic = Ontology.resource(NS, "Characteristic");
     public static final Resource Method = Ontology.resource(NS, "Method");
     public static final Resource Unit = Ontology.resource(NS, "Unit");
@@ -60,6 +61,7 @@ public class Oeso {
     public static final Property hasMethod = Ontology.property(NS, "hasMethod");
     public static final Property hasUnit = Ontology.property(NS, "hasUnit");
     public static final Property hasDataType = Ontology.property(NS, "hasDataType");
+    public static final Property hasEntityOfInterest = Ontology.property(NS, "hasEntityOfInterest");
 
     // ---- VARIABLES Unit ----
     public static final Property hasTimeInterval = Ontology.property(NS, "hasTimeInterval");
@@ -89,7 +91,8 @@ public class Oeso {
     public static final Resource Experiment = Ontology.resource(NS, "Experiment");
 
     public static final Property hasDevice = Ontology.property(NS, "hasDevice");
-    public static final Property hasInfrastructure = Ontology.property(NS, "hasInfrastructure");
+    public static final Property usesOrganization = Ontology.property(NS, "usesOrganization");
+    public static final Property usesFacility = Ontology.property(NS, "usesFacility");
     public static final Property hasProject = Ontology.property(NS, "hasProject");
     public static final Property hasScientificSupervisor = Ontology.property(NS, "hasScientificSupervisor");
     public static final Property hasTechnicalSupervisor = Ontology.property(NS, "hasTechnicalSupervisor");
@@ -99,17 +102,20 @@ public class Oeso {
     public static final Property measures = Ontology.property(NS, "measures");
     public static final Property participatesIn = Ontology.property(NS, "participatesIn");
 
-    // ---- INFRASTRUCTURES AND INSTALLATION
-    public static final Resource Infrastructure = Ontology.resource(NS, "Infrastructure");
-    public static final Resource InfrastructureFacility = Ontology.resource(NS, "InfrastructureFacility");
-    public static final Resource InfrastructureTeam = Ontology.resource(NS, "InfrastructureTeam");
+    // ---- ORGANIZATIONS AND INSTALLATION
+    public static final Resource Facility = Ontology.resource(NS, "Facility");
     public static final Resource Installation = Ontology.resource(NS, "Installation");
-    public static final Property hasFacility = Ontology.property(NS, "hasFacility");
+    public static final Property isHosted = Ontology.property(NS, "isHosted");
+    public static final Property containsFacility = Ontology.property(NS, "containsFacility");
+    public static final Property withinSite = Ontology.property(NS, "withinSite");
+    public static final Property hasGeometry = Ontology.property(NS, "hasGeometry");
+
 
     // ---- SPECIES ----
     // public static final Resource Species = Ontology.resource(NS, "Species");
     // ---- FACTORS ----
     public static final Resource Factor = Ontology.resource(NS, "Factor");
+    public static final Resource FactorCategory = Ontology.resource(NS, "FactorCategory"); 
     public static final Resource FactorLevel = Ontology.resource(NS, "FactorLevel");
     public static final Property hasFactorLevel = Ontology.property(NS, "hasFactorLevel");
     public static final Property hasFactor = Ontology.property(NS, "hasFactor");
@@ -119,6 +125,8 @@ public class Oeso {
     public static final Property studiedEffectIn = Ontology.property(NS, "studiedEffectIn");
 
     public static final Resource SensingDevice = Ontology.resource(NS, "SensingDevice");
+    public static final Resource Software = Ontology.resource(NS, "Software");
+
     public static final Resource Operator = Ontology.resource(NS, "Operator");
 
     // ---- GERMPLASM ----
@@ -133,6 +141,7 @@ public class Oeso {
     public static final Property fromInstitute = Ontology.property(NS, "fromInstitute");
     public static final Property hasProductionYear = Ontology.property(NS, "hasProductionYear");
     public static final Property hasGermplasm = Ontology.property(NS, "hasGermplasm");
+    public static final Property hasReplication = Ontology.property(NS, "hasReplication");
     public static final Property hasId = Ontology.property(NS, "hasId");
 
     // ---- SCIENTIFIC OBJECTS ----
@@ -163,5 +172,4 @@ public class Oeso {
     public static final Property personInCharge = Ontology.property(NS,"personInCharge");
     public static final Property startUp = Ontology.property(NS,"startUp");
     public static final Property removal = Ontology.property(NS,"removal");
-
 }

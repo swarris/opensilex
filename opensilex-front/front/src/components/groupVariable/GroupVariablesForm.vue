@@ -27,14 +27,21 @@
     </opensilex-TextAreaForm>
 
     <!-- Variables -->
+
+    <!-- We use the old VariableSelector in editMode because of the edit bug -->
     <opensilex-VariableSelector
-      ref="selectVariablesForm"
-      label="VariableView.title"
-      placeholder="VariableList.label-filter-placeholder"
-      :multiple="true"
+      v-if="editMode"
+      label="DataView.filter.variables"
       :variables.sync="form.variables"
-      :required="false">
-    </opensilex-VariableSelector>
+      :multiple="true"
+    ></opensilex-VariableSelector>
+
+    <opensilex-VariableSelectorWithFilter
+      v-else
+      placeholder="VariableSelectorWithFilter.placeholder-multiple"
+      :variables.sync="form.variables"
+    ></opensilex-VariableSelectorWithFilter>
+
   </ValidationObserver>
 </template>
 
@@ -57,22 +64,12 @@ export default class GroupVariablesForm extends Vue {
   uriGenerated;
 
   @Ref("validatorRef") readonly validatorRef!: any;
-  @Ref("selectVariablesForm") readonly selectVariablesForm!: any;
 
   get user() {
     return this.$store.state.user;
   }
 
-  @Prop({
-    default: () => {
-      return {
-        uri: null,
-        name: null,
-        description: null,
-        variables: []
-      };
-    }
-  })
+  @Prop()
   form;
 
   static getEmptyForm(){
@@ -97,6 +94,7 @@ export default class GroupVariablesForm extends Vue {
         this.$opensilex.showSuccessToast(message);
         let uri = http.response.result;
         this.$emit("onCreate", uri);
+        this.$router.push({path: "/variables?elementType=VariableGroup&selected=" + encodeURIComponent(uri)});
       })
       .catch(error => {
         if (error.status == 409) {

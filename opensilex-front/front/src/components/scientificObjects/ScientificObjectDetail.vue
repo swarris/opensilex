@@ -1,5 +1,5 @@
 <template>
-  <div v-if="selected && selected.uri" :class="{'embed-tabs': !globalView}">
+  <div v-if="selected && selected.uri" :class="{'ok embed-tabs': !globalView}">
     <opensilex-PageActions :returnButton="withReturnButton" :tabs="true">
       <b-nav-item
         :active="isDetailsTab"
@@ -72,7 +72,7 @@
         :deleteCredentialId="credentials.CREDENTIAL_EXPERIMENT_DELETE_ID"
         :enableActions="true"
         :modificationCredentialId="
-          credentials.CREDENTIAL_EXPERIMENT_MODIFICATION_ID
+          credentials.CREDENTIAL_ANNOTATION_MODIFICATION_ID
         "
         :target="selected.uri"
       ></opensilex-AnnotationList>
@@ -80,15 +80,12 @@
 
     <opensilex-ScientificObjectVisualizationTab
       v-if="isVisualizationTab"
-      :scientificObject="selected.uri"
-      :modificationCredentialId="
-        credentials.CREDENTIAL_EXPERIMENT_MODIFICATION_ID
-      "
+      :scientificObject="selected"
     ></opensilex-ScientificObjectVisualizationTab>
 
     <opensilex-DocumentTabList
       v-if="isDocumentTab"
-      :modificationCredentialId="credentials.CREDENTIAL_EXPERIMENT_MODIFICATION_ID"
+      :modificationCredentialId="credentials.CREDENTIAL_DOCUMENT_MODIFICATION_ID"
       :uri="selected.uri"
     ></opensilex-DocumentTabList>
 
@@ -99,8 +96,9 @@
       :displayTargetFilter="false"
       :columnsToDisplay="getEventColumnToDisplay()"
       :maximizeFilterSize="true"
-      :modificationCredentialId="credentials.CREDENTIAL_EXPERIMENT_MODIFICATION_ID"
-      :deleteCredentialId="credentials.CREDENTIAL_EXPERIMENT_DELETE_ID"
+      :modificationCredentialId="credentials.CREDENTIAL_EVENT_MODIFICATION_ID"
+      :deleteCredentialId="credentials.CREDENTIAL_EVENT_DELETE_ID"
+      :context="{experimentURI: experiment}"
     ></opensilex-EventList>
 
     <opensilex-PositionList
@@ -108,8 +106,8 @@
       ref="positionList"
       :target="selected.uri"
       :columnsToDisplay="getPositionsColumnToDisplay()"
-      :modificationCredentialId="credentials.CREDENTIAL_EXPERIMENT_MODIFICATION_ID"
-      :deleteCredentialId="credentials.CREDENTIAL_EXPERIMENT_DELETE_ID"
+      :modificationCredentialId="credentials.CREDENTIAL_EVENT_MODIFICATION_ID"
+      :deleteCredentialId="credentials.CREDENTIAL_EVENT_DELETE_ID"
     ></opensilex-PositionList>
   </div>
 </template>
@@ -153,7 +151,7 @@ export default class ScientificObjectDetail extends Vue {
   }
 
   getPositionsColumnToDisplay() : Set<string>{
-      return this.globalView ? PositionList.getDefaultColumns() : new Set(['to', 'end', 'coordinates']) ;
+      return this.globalView ? PositionList.getDefaultColumns() : new Set(['to', 'end', 'coordinates','custom_coordinates','textual_position']) ;
   }
 
 

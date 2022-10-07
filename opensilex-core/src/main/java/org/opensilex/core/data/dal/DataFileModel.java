@@ -20,9 +20,12 @@ import org.opensilex.server.rest.serialization.ObjectMapperContextResolver;
 
 public class DataFileModel extends DataModel {
     
-    URI rdfType;
-    String filename;
-    String path;
+    private URI rdfType;
+    private String filename;
+    private String path;
+    private URI archive;
+
+    public static final String RDF_TYPE_FIELD = "rdfType";
 
     public URI getRdfType() {
         return rdfType;
@@ -47,9 +50,17 @@ public class DataFileModel extends DataModel {
     public void setPath(String path) {
         this.path = path;
     }
+
+    public URI getArchive() {
+        return archive;
+    }
+
+    public void setArchive(URI archive) {
+        this.archive = archive;
+    }
     
     @Override
-    public String[] getUriSegments(MongoModel instance) {
+    public String[] getInstancePathSegments(MongoModel instance) {
     ObjectMapper mapper = ObjectMapperContextResolver.getObjectMapper();
         String provenanceString = "";
         try {
@@ -68,6 +79,6 @@ public class DataFileModel extends DataModel {
             String.valueOf(getDate().getEpochSecond()),
             md5Hash
         };
-    } 
-        
+    }
+
 }

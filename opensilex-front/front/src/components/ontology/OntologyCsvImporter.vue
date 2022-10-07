@@ -1,14 +1,9 @@
  <template>
   <b-modal
     ref="OntologyCsvImporter"
-    @ok.prevent="importCSV"
     size="xl"
     :static="true"
-    :ok-disabled="!csvFile || !!validationErrors"
   >
-    <template v-slot:modal-ok>{{ $t("component.common.ok") }}</template>
-    <template v-slot:modal-cancel>{{ $t("component.common.cancel") }}</template>
-
     <template class="mt-1" v-slot:modal-header>
       <b-row class="mt-1" style="width: 100%">
         <b-col cols="11">
@@ -18,7 +13,6 @@
                 <opensilex-Icon icon="fa#eye" class="icon-title" />
               </slot>
                 <span>{{$t(title)}}</span>
-
             </h4>
           </i>
         </b-col>
@@ -73,9 +67,9 @@
           <b-table-simple hover small responsive sticky-header>
             <b-thead head-variant="light">
               <b-tr>
-                <b-th>Ligne</b-th>
-                <b-th>Type d'erreur</b-th>
-                <b-th>Détail</b-th>
+                <b-th>{{$t("OntologyCsvImporter.line")}}</b-th>
+                <b-th>{{$t("OntologyCsvImporter.errorType")}}</b-th>
+                <b-th>{{$t("OntologyCsvImporter.detail")}}</b-th>
               </b-tr>
             </b-thead>
             <b-tbody>
@@ -129,6 +123,21 @@
         </div>
       </ValidationObserver>
     </div>
+    <template v-slot:modal-footer>
+      <button
+        type="button"
+        class="btn btn-secondary"
+        v-on:click="hide(false)"
+      >{{ $t('component.common.close') }}</button>
+
+      <button
+        type="button"
+        class="btn greenThemeColor"
+        v-on:click="importCSV()"
+        :disabled="!csvFile || !!validationErrors"
+        :prevent="importCSV"
+      >{{ $t('component.common.ok') }}</button> 
+    </template>
   </b-modal>
 </template>
 
@@ -425,7 +434,7 @@ en:
     invalidValueErrors: Invalid value
     alreadyExistingURIErrors:  URI already existing
     duplicateURIErrors: Duplicate URI
-    validationErrorMessage: "Column: '{header}' - Value: '{value}'"
+    validationErrorMessage: "Column: '{header}' - Value: '{value}' - Details: '{msg}'"
     validationErrorMissingRequiredMessage: "Column: '{header}'"
     validationErrorMissingHeaderMessage: "Header: '{header}'"
     validationErrorDuplicateURIMessage: "Column: '{header}' - Value: '{value}' - Identical with row: '{previousRow}'"
@@ -437,7 +446,9 @@ en:
     downloadTemplate: Download CSV template
     separator: separator
     csv-import-success-message: CSV file imported sucessfully
-
+    line: Line
+    errorType: "Error type"
+    detail: Detail
 fr:
   OntologyCsvImporter:
     import: Import CSV
@@ -459,7 +470,7 @@ fr:
     invalidValueErrors: Valeur invalide
     alreadyExistingURIErrors: URI déjà existante
     duplicateURIErrors: URI dupliquée
-    validationErrorMessage: "Colonne: '{header}' - Valeur: '{value}'"
+    validationErrorMessage: "Colonne: '{header}' - Valeur: '{value}' - Détail: '{msg}'"
     validationErrorMissingRequiredMessage: "Colonne: '{header}'"
     validationErrorMissingHeaderMessage: "En-tête: '{header}'"
     validationErrorDuplicateURIMessage: "Colonne: '{header}' - Valeur: '{value}' - Identique à la ligne: '{previousRow}'"
@@ -471,4 +482,7 @@ fr:
     downloadTemplate: Télécharger le modèle de fichier CSV
     separator: séparateur
     csv-import-success-message: Fichier CSV importé
+    line: Ligne
+    errorType: "Type d'erreur"
+    detail: Détail
 </i18n>

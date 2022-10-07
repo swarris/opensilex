@@ -1,6 +1,7 @@
 <template>
   <opensilex-SelectForm
     :label="label"
+    :required="required"
     :selected.sync="infrastructuresURI"
     :multiple="multiple"
     :options="infrastructuresOptions"
@@ -11,12 +12,10 @@
 </template>
 
 <script lang="ts">
-import { Component, Prop, PropSync } from "vue-property-decorator";
-import Vue, { PropOptions } from "vue";
-// @ts-ignore
-import HttpResponse, { OpenSilexResponse } from "opensilex-core/HttpResponse";
-// @ts-ignore
-import { ResourceTreeDTO } from "opensilex-core/index";
+import {Component, Prop, PropSync} from "vue-property-decorator";
+import Vue from "vue";
+import HttpResponse, {OpenSilexResponse} from "opensilex-core/HttpResponse";
+import { ResourceDagDTO } from 'opensilex-core/index';
 
 @Component
 export default class InfrastructureSelector extends Vue {
@@ -31,17 +30,33 @@ export default class InfrastructureSelector extends Vue {
   @Prop()
   multiple;
 
+  @Prop()
+  excludeInfrastructureURI: string;
+
+  @Prop({
+    default: false
+  })
+  required: boolean;
+
   infrastructuresOptions = [];
   mounted() {
+    this.init();
+  }
+
+  init() {
     this.$opensilex
-      .getService("opensilex-core.OrganisationsService")
-      .searchInfrastructuresTree()
-      .then((http: HttpResponse<OpenSilexResponse<Array<ResourceTreeDTO>>>) => {
-        this.infrastructuresOptions = this.$opensilex.buildTreeListOptions(
+      .getService("opensilex-core.OrganizationsService")
+      .searchInfrastructures()
+      .then((http: HttpResponse<OpenSilexResponse<Array<ResourceDagDTO>>>) => {
+        this.infrastructuresOptions = this.$opensilex.buildTreeFromDag(
           http.response.result
         );
       })
       .catch(this.$opensilex.errorHandler);
+  }
+
+  reset() {
+    this.init();
   }
 
   select(value) {

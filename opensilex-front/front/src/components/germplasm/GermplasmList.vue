@@ -1,96 +1,137 @@
 <template>
   <div>
-
-    <opensilex-SearchFilterField
-      @search="refresh()"
-      @clear="reset()"
-      label="GermplasmList.filter.description"
-      :showAdvancedSearch="true"
+    <opensilex-PageContent
+      class="pagecontent"
     >
-      <template v-slot:filters>
+      <!-- Toggle Sidebar -->
+      <div class="searchMenuContainer"
+        v-on:click="SearchFiltersToggle = !SearchFiltersToggle"
+        :title="searchFiltersPannel()">
+        <div class="searchMenuIcon">
+          <i class="icon ik ik-search"></i>
+        </div>
+      </div>
+      <Transition>
+        <div v-show="SearchFiltersToggle">
+          <opensilex-SearchFilterField
+            @search="refresh()"
+            @clear="reset()"
+            label="GermplasmList.filter.description"
+            :showAdvancedSearch="true"
+            class="searchFilterField"
+          >
+        <template v-slot:filters>
         <!-- Type -->
-        <opensilex-FilterField>
-          <opensilex-TypeForm
-            :type.sync="filter.rdf_type"
-            :baseType="$opensilex.Oeso.GERMPLASM_TYPE_URI"
-            placeholder="GermplasmList.filter.rdfType-placeholder"
-          ></opensilex-TypeForm>
-        </opensilex-FilterField>
+        <div>
+          <opensilex-FilterField>
+            <opensilex-TypeForm
+              :type.sync="filter.rdf_type"
+              :baseType="$opensilex.Oeso.GERMPLASM_TYPE_URI"
+              placeholder="GermplasmList.filter.rdfType-placeholder"
+              class="searchFilter"
+            ></opensilex-TypeForm>
+          </opensilex-FilterField>
+        </div>
         
         <!-- Species -->
-        <opensilex-FilterField>
-          <opensilex-SelectForm
-            label="GermplasmList.filter.species"
-            placeholder="GermplasmList.filter.species-placeholder"
-            :multiple="false"
-            :selected.sync="filter.species"
-            :options="species"
-          ></opensilex-SelectForm>
-        </opensilex-FilterField>
+        <div>
+          <opensilex-FilterField>
+            <opensilex-SelectForm
+              label="GermplasmList.filter.species"
+              placeholder="GermplasmList.filter.species-placeholder"
+              :multiple="false"
+              :selected.sync="filter.species"
+              :options="species"
+              class="searchFilter"
+            ></opensilex-SelectForm>
+          </opensilex-FilterField>
+        </div>
 
         <!-- Year -->
-        <opensilex-FilterField>
-          <label>{{$t('GermplasmList.filter.year')}}</label>
-          <opensilex-StringFilter
-            :filter.sync="filter.production_year"
-            placeholder="GermplasmList.filter.year-placeholder"
-            type="number"
-          ></opensilex-StringFilter>
-        </opensilex-FilterField>
+        <div>
+          <opensilex-FilterField>
+            <label>{{$t('GermplasmList.filter.year')}}</label>
+            <opensilex-StringFilter
+              :filter.sync="filter.production_year"
+              placeholder="GermplasmList.filter.year-placeholder"
+              type="number"
+              class="searchFilter"
+            ></opensilex-StringFilter>
+          </opensilex-FilterField> <br>
+        </div>
 
         <!-- Institute -->
-        <opensilex-FilterField>
-          <label>{{$t('GermplasmList.filter.institute')}}</label>
-          <opensilex-StringFilter
-            :filter.sync="filter.institute"
-            placeholder="GermplasmList.filter.institute-placeholder"
-          ></opensilex-StringFilter>
-        </opensilex-FilterField>
+        <div>
+          <opensilex-FilterField>
+            <label>{{$t('GermplasmList.filter.institute')}}</label>
+            <opensilex-StringFilter
+              :filter.sync="filter.institute"
+              placeholder="GermplasmList.filter.institute-placeholder"
+              class="searchFilter"
+            ></opensilex-StringFilter>
+          </opensilex-FilterField> <br>
+        </div>
 
         <!-- Name -->
-        <opensilex-FilterField>
-          <label>{{$t('GermplasmList.filter.label')}}</label>
-          <opensilex-StringFilter
-            :filter.sync="filter.name"
-            placeholder="GermplasmList.filter.label-placeholder"
-          ></opensilex-StringFilter>
-        </opensilex-FilterField>
+        <div>
+          <opensilex-FilterField>
+            <label>{{$t('GermplasmList.filter.label')}}</label>
+            <opensilex-StringFilter
+              :filter.sync="filter.name"
+              placeholder="GermplasmList.filter.label-placeholder"
+              class="searchFilter"
+            ></opensilex-StringFilter>
+          </opensilex-FilterField> <br>
+        </div>
 
         <!-- Experiments -->
-        <opensilex-FilterField>
-          <opensilex-ExperimentSelector
-            label="GermplasmList.filter.experiment"
-            :experiments.sync="filter.experiment"
-          ></opensilex-ExperimentSelector>
-        </opensilex-FilterField> 
+        <div>
+          <opensilex-FilterField>
+            <opensilex-ExperimentSelector
+              label="GermplasmList.filter.experiment"
+              :experiments.sync="filter.experiment"
+              class="searchFilter"
+            ></opensilex-ExperimentSelector>
+          </opensilex-FilterField> 
+        </div>
 
         <!-- URI -->
-        <opensilex-FilterField>
-          <label>{{$t('GermplasmList.filter.uri')}}</label>
-          <opensilex-StringFilter
-            :filter.sync="filter.uri"
-            placeholder="GermplasmList.filter.uri-placeholder"
-          ></opensilex-StringFilter>
-        </opensilex-FilterField>        
+        <div>
+          <opensilex-FilterField>
+            <label>{{$t('GermplasmList.filter.uri')}}</label>
+            <opensilex-StringFilter
+              :filter.sync="filter.uri"
+              placeholder="GermplasmList.filter.uri-placeholder"
+              class="searchFilter"
+            ></opensilex-StringFilter>
+          </opensilex-FilterField> <br> 
+        </div>    
       </template>  
 
       <template v-slot:advancedSearch>
-        <opensilex-FilterField>
-          <opensilex-StringFilter
-            :filter.sync="filter.metadataKey"
+        <div>
+          <opensilex-FilterField>
+            <opensilex-GermplasmAttributesSelector
+            :germplasmAttribute.sync="filter.metadataKey"
             label="GermplasmList.filter.metadataKey"
-          ></opensilex-StringFilter>
-        </opensilex-FilterField>
-        <opensilex-FilterField>
-          <opensilex-StringFilter
-            :filter.sync="filter.metadataValue"
-            label="GermplasmList.filter.metadataValue"
-          ></opensilex-StringFilter>
-        </opensilex-FilterField>
+            class="searchFilter"
+            ></opensilex-GermplasmAttributesSelector> 
+          </opensilex-FilterField>
+        </div>
+        <div>
+          <opensilex-FilterField>
+            <span >{{$t("GermplasmList.filter.metadataValue")}}</span>
+            <opensilex-StringFilter
+              class="searchFilter"  
+              :filter.sync="filter.metadataValue"
+            ></opensilex-StringFilter>
+          </opensilex-FilterField> <br>
+        </div>
       </template>     
       
     </opensilex-SearchFilterField>
-
+            </div>
+        </Transition>
     <opensilex-TableAsyncView
       ref="tableRef"
       :searchMethod="searchGermplasm"
@@ -107,13 +148,23 @@
           :small="true"
           :disabled="numberOfSelectedRows == 0"
           text=actions>
-            <b-dropdown-item-button    
+            <b-dropdown-item-button
+                v-if="user.hasCredential(credentials.CREDENTIAL_DOCUMENT_MODIFICATION_ID)"
               @click="createDocument()"
             >{{$t('component.common.addDocument')}}</b-dropdown-item-button>
             <b-dropdown-item-button
-              @click="exportGermplasm()"
+              @click="exportCSV(false)"
           >{{$t('GermplasmList.export')}}</b-dropdown-item-button>
         </b-dropdown>
+
+          <opensilex-CreateButton
+              v-if="!noActions"
+              class="mb-2 mr-2"
+              @click="exportCSV(true)"
+              :disabled="tableRef.totalRow === 0"
+              label="ScientificObjectList.export-all"
+          ></opensilex-CreateButton>
+
       </template>
       <template v-slot:cell(name)="{data}">
         <opensilex-UriLink
@@ -126,11 +177,10 @@
       <template v-slot:cell(actions)="{data}">
         <b-button-group size="sm">
           <opensilex-EditButton
-            v-if="user.hasCredential(credentials.CREDENTIAL_GERMPLASM_MODIFICATION_ID) && !data.item.rdf_type.endsWith('Species')"
+            v-if="user.hasCredential(credentials.CREDENTIAL_GERMPLASM_MODIFICATION_ID)"
             @click="$emit('onEdit', data.item.uri)"
             label="GermplasmList.update"
-            :small="true"
-            
+            :small="true" 
           ></opensilex-EditButton>
           <opensilex-DeleteButton
             v-if="user.hasCredential(credentials.CREDENTIAL_GERMPLASM_DELETE_ID)"
@@ -150,6 +200,7 @@
       :initForm="initForm"
       icon="ik#ik-file-text"
     ></opensilex-ModalForm>
+    </opensilex-PageContent>
   </div>
 </template>
 
@@ -158,7 +209,7 @@ import { Component, Ref, Prop } from "vue-property-decorator";
 import Vue from "vue";
 import VueRouter from "vue-router";
 // @ts-ignore
-import { GermplasmService, ExperimentGetListDTO, ExperimentsService, SpeciesService, SpeciesDTO } from "opensilex-core/index";
+import { GermplasmService, ExperimentGetListDTO, ExperimentsService, SpeciesService, SpeciesDTO, GermplasmSearchFilter } from "opensilex-core/index";
 
 import HttpResponse, { OpenSilexResponse } from "../../lib/HttpResponse";
 
@@ -200,8 +251,6 @@ export default class GermplasmList extends Vue {
   speciesByUri: Map<String, SpeciesDTO> = new Map<String, SpeciesDTO>();
   experimentsList = [];
 
-  exportPath = "/core/germplasm/export";
-
   filter = {
     rdf_type: undefined,
     name: undefined,
@@ -213,17 +262,6 @@ export default class GermplasmList extends Vue {
     metadataKey: undefined,
     metadataValue: undefined
   };
-
-  // exportFilter = {
-  //   rdf_type: undefined,
-  //   name: undefined,
-  //   species: undefined,
-  //   production_year: undefined,
-  //   institute: undefined,
-  //   experiment: undefined,
-  //   uri: undefined,
-  //   metadata: undefined
-  // };
 
   reset() {
     this.filter = {
@@ -237,16 +275,7 @@ export default class GermplasmList extends Vue {
       metadataKey: undefined,
       metadataValue: undefined
     };
-    // this.exportFilter = {
-    //   rdf_type: undefined,
-    //   name: undefined,
-    //   species: undefined,
-    //   production_year: undefined,
-    //   institute: undefined,
-    //   experiment: undefined,
-    //   uri: undefined,
-    //   metadata: undefined
-    // };
+
     this.refresh();
   }
 
@@ -329,16 +358,36 @@ export default class GermplasmList extends Vue {
     );
   }
 
-  exportGermplasm() {
-    let path = "/core/germplasm/export_by_uris";
+  exportCSV(exportAll: boolean) {
+    let path = "/core/germplasm/export";
     let today = new Date();
     let filename = "export_germplasm_" + today.getFullYear() + String(today.getMonth() + 1).padStart(2, '0') + String(today.getDate()).padStart(2, '0');
-    var exportList = []
-    for (let select of this.tableRef.getSelected()) {
-      exportList.push(select.uri);
+
+    let exportDto: GermplasmSearchFilter  = {
+        uri: this.filter.uri,
+        rdf_type: this.filter.rdf_type,
+        name: this.filter.name,
+        production_year: this.filter.production_year,
+        species: this.filter.species,
+        institute: this.filter.institute,
+        experiment: this.filter.experiment,
+        order_by: this.tableRef.getOrderBy(),
+        metadata: this.addMetadataFilter()
+    };
+
+    // export only selected URIS (+matching with filter)
+    if(! exportAll){
+      let objectURIs = [];
+      for (let select of this.tableRef.getSelected()) {
+        objectURIs.push(select.uri);
+      }
+      Object.assign(exportDto, {
+        uris: objectURIs
+      });
     }
+
     this.$opensilex
-     .downloadFilefromPostService(path, filename, "csv", {uris: exportList}, this.lang);
+     .downloadFilefromPostService(path, filename, "csv", exportDto, this.lang);
   }
 
 
@@ -408,17 +457,6 @@ export default class GermplasmList extends Vue {
     }
   }
 
-  // INFO: function used for web service exporting from search filters
-  // updateExportFilters() {
-  //   this.exportFilter.rdf_type = this.filter.rdf_type;
-  //   this.exportFilter.name = this.filter.name;
-  //   this.exportFilter.species = this.filter.species;
-  //   this.exportFilter.production_year = this.filter.production_year;
-  //   this.exportFilter.institute = this.filter.institute;
-  //   this.exportFilter.experiment = this.filter.experiment;
-  //   this.exportFilter.uri = this.filter.uri;
-  //   this.exportFilter.metadata = this.addMetadataFilter();
-  // }
     createDocument() {
     this.documentForm.showCreateForm();
   }
@@ -446,7 +484,15 @@ export default class GermplasmList extends Vue {
       file: undefined
     }
   }
+    data(){
+    return {
+      SearchFiltersToggle : false,
+    }
+  }
 
+    searchFiltersPannel() {
+    return  this.$t("searchfilter.label")
+  }
 }
 </script>
 

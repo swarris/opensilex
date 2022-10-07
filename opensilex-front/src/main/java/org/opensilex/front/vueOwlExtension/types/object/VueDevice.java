@@ -10,16 +10,16 @@ public class VueDevice implements VueOntologyObjectType {
 
     @Override
     public String getTypeUri() {
-        return Oeso.SensingDevice.getURI();
+        return Oeso.Device.getURI();
     }
 
     @Override
     public String getInputComponent() {
-        return "opensilex-DeviceSelector";
+        return "opensilex-DevicePropertySelector";
     }
 
     @Override
     public String getViewComponent() {
-        return "opensilex-DevicePropertyView";
+        return "opensilex-XSDUriView";
     }
 }

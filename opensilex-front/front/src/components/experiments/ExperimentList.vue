@@ -1,88 +1,123 @@
 <template>
   <div>
-    <opensilex-SearchFilterField
-      ref="searchFilterField"
-      @search="refresh()"
-      @clear="reset()"
-      label="component.experiment.search.label"
-      :showAdvancedSearch="true"
+    <opensilex-PageContent
+      class="pagecontent"
     >
-      <template v-slot:filters>
-        <!-- Name -->
-        <opensilex-FilterField>
-          <b-form-group>
-            <label for="name">{{ $t("ExperimentList.filter-label") }}</label>
-            <opensilex-StringFilter
-              id="name"
-              :filter.sync="filter.name"
-              placeholder="ExperimentList.filter-label-placeholder"
-            ></opensilex-StringFilter>
-          </b-form-group>
-        </opensilex-FilterField>
+      <!-- Toggle Sidebar--> 
+      <div class="searchMenuContainer"
+      v-on:click="SearchFiltersToggle = !SearchFiltersToggle"
+      :title="searchFiltersPannel()">
+        <div class="searchMenuIcon">
+          <i class="icon ik ik-search"></i>
+        </div>
+      </div>
+      <!-- FILTERS -->
+      <Transition>
+        <div v-show="SearchFiltersToggle">
+          <opensilex-SearchFilterField
+            ref="searchFilterField"
+            @search="refresh()"
+            @clear="reset()"
+            label="component.experiment.search.label"
+            :showAdvancedSearch="true"
+            class="searchFilterField"
+          >
+            <template v-slot:filters>
+              <!-- Name -->
+              <div>
+                <opensilex-FilterField>
+                  <b-form-group>
+                    <label for="name">{{ $t("ExperimentList.filter-label") }}</label>
+                    <opensilex-StringFilter
+                      id="name"
+                      :filter.sync="filter.name"
+                      placeholder="ExperimentList.filter-label-placeholder"
+                      class="searchFilter"
+                    ></opensilex-StringFilter>
+                  </b-form-group>
+                </opensilex-FilterField>
+              </div>
 
-        <!-- Species -->
-        <opensilex-FilterField>
-          <opensilex-SelectForm
-            label="ExperimentList.filter-species"
-            placeholder="ExperimentList.filter-species-placeholder"
-            :multiple="true"
-            :selected.sync="filter.species"
-            :options="species"
-          ></opensilex-SelectForm>
-        </opensilex-FilterField>
+              <!-- Species -->
+              <div>
+                <opensilex-FilterField>
+                  <opensilex-SelectForm
+                    label="ExperimentList.filter-species"
+                    placeholder="ExperimentList.filter-species-placeholder"
+                    :multiple="true"
+                    :selected.sync="filter.species"
+                    :options="species"
+                    class="searchFilter"
+                  ></opensilex-SelectForm>
+                </opensilex-FilterField>
+              </div>
 
-        <!-- factorCategories -->
-        <opensilex-FilterField>
-           <opensilex-FactorCategorySelector
-          ref="factorCategorySelector"
-          label="ExperimentList.filter-factors-categories"
-          placeholder="ExperimentList.filter-factors-categories-placeholder"
-          helpMessage="component.factor.name-help"
-          :multiple="true" 
-          :category.sync="filter.factorCategories"
-        ></opensilex-FactorCategorySelector> 
-        </opensilex-FilterField>
+              <!-- factorCategories -->
+              <div>
+                <opensilex-FilterField>
+                  <opensilex-FactorCategorySelector
+                  ref="factorCategorySelector"
+                  label="ExperimentList.filter-factors-categories"
+                  placeholder="ExperimentList.filter-factors-categories-placeholder"
+                  helpMessage="component.factor.name-help"
+                  :multiple="true" 
+                  :category.sync="filter.factorCategories"
+                  class="searchFilter"
+                ></opensilex-FactorCategorySelector> 
+                </opensilex-FilterField>
+              </div>
 
-        <!-- Year -->
-        <opensilex-FilterField>
-          <label>{{ $t("ExperimentList.filter-year") }}</label>
-          <opensilex-StringFilter
-            placeholder="ExperimentList.filter-year-placeholder"
-            :filter.sync="filter.yearFilter"
-            type="number"
-          ></opensilex-StringFilter>
-        </opensilex-FilterField>
-      </template>
+              <!-- Year -->
+              <div>
+                <opensilex-FilterField>
+                  <label>{{ $t("ExperimentList.filter-year") }}</label>
+                  <opensilex-StringFilter
+                    placeholder="ExperimentList.filter-year-placeholder"
+                    :filter.sync="filter.yearFilter"
+                    type="number"
+                    class="searchFilter"
+                  ></opensilex-StringFilter>
+                </opensilex-FilterField><br>
+              </div>
+            </template>
 
-      <template v-slot:advancedSearch>
-        <!-- Projects -->
-        <opensilex-FilterField>
-          <opensilex-SelectForm
-            label="ExperimentList.filter-project"
-            placeholder="ExperimentList.filter-project-placeholder"
-            :selected.sync="filter.projects"
-            :conversionMethod="projectGetDTOToSelectNode"
-            modalComponent="opensilex-ProjectModalList"
-            :itemLoadingMethod="loadProjects"
-            :isModalSearch="true"
-            :clearable="true"
-            :multiple="true"
-            @clear="filter.projects=null"
-          ></opensilex-SelectForm>
-        </opensilex-FilterField>
+            <template v-slot:advancedSearch>
+              <!-- Projects -->
+              <div>
+                <opensilex-FilterField>
+                  <opensilex-SelectForm
+                    ref="projectSelector"
+                    label="ExperimentList.filter-project"
+                    placeholder="ExperimentList.filter-project-placeholder"
+                    :selected.sync="filter.projects"
+                    modalComponent="opensilex-ProjectModalList"
+                    :isModalSearch="true"
+                    :clearable="true"
+                    :multiple="true"
+                    @clear="refreshProjectSelector"
+                    :limit="1"
+                    class="searchFilter"
+                  ></opensilex-SelectForm>
+                </opensilex-FilterField>
+              </div>
 
-        <!-- State -->
-        <opensilex-FilterField>
-          <opensilex-SelectForm
-            label="ExperimentList.filter-state"
-            placeholder="ExperimentList.filter-state-placeholder"
-            :multiple="false"
-            :selected.sync="filter.state"
-            :options="experimentStates"
-          ></opensilex-SelectForm>
-        </opensilex-FilterField>
-      </template>
-    </opensilex-SearchFilterField>
+              <!-- State -->
+              <div>
+                <opensilex-FilterField>
+                  <opensilex-SelectForm
+                    label="ExperimentList.filter-state"
+                    placeholder="ExperimentList.filter-state-placeholder"
+                    :multiple="false"
+                    :selected.sync="filter.state"
+                    :options="experimentStates"
+                    class="searchFilter"
+                  ></opensilex-SelectForm>
+                </opensilex-FilterField>
+              </div>
+            </template>
+          </opensilex-SearchFilterField>
+        </div>
+      </Transition>
 
     <opensilex-TableAsyncView
       ref="tableRef"
@@ -99,8 +134,11 @@
           class="mb-2 mr-2"
           :small="true"
           :disabled="numberOfSelectedRows == 0"
-          text=actions>
-            <b-dropdown-item-button    
+          text=actions
+          v-if="user.hasCredential(credentials.CREDENTIAL_DOCUMENT_MODIFICATION_ID)"
+        >
+            <b-dropdown-item-button
+                v-if="user.hasCredential(credentials.CREDENTIAL_DOCUMENT_MODIFICATION_ID)"
               @click="createDocument()"
             >{{$t('component.common.addDocument')}}</b-dropdown-item-button>
         </b-dropdown>
@@ -116,10 +154,13 @@
       </template>
 
       <template v-slot:cell(species)="{ data }">
-        <span :key="index" v-for="(uri, index) in data.item.species">
-          <span :title="uri">{{ getSpeciesName(uri) }}</span>
-          <span v-if="index + 1 < data.item.species.length">,</span>
+        <span class="species-list" v-if="data.item.species.length > 0">
+          <span :key="index" v-for="(uri, index) in data.item.species">
+            <span :title="uri">{{ getSpeciesName(uri) }}</span>
+            <span v-if="index + 1 < data.item.species.length">, </span>
+          </span>
         </span>
+        <span v-else></span>
       </template>
 
       <template v-slot:cell(start_date)="{ data }">
@@ -171,7 +212,7 @@
       </template>
     </opensilex-TableAsyncView>
     <opensilex-ModalForm
-      v-if="user.hasCredential(credentials.CREDENTIAL_EXPERIMENT_MODIFICATION_ID)"
+      v-if="user.hasCredential(credentials.CREDENTIAL_DOCUMENT_MODIFICATION_ID)"
       ref="documentForm"
       component="opensilex-DocumentForm"
       createTitle="component.common.addDocument"
@@ -179,6 +220,7 @@
       :initForm="initForm"
       icon="ik#ik-file-text"
     ></opensilex-ModalForm>
+      </opensilex-PageContent>
   </div>
 </template>
 
@@ -190,6 +232,7 @@ import moment from "moment";
 import { SpeciesDTO, SpeciesService, ProjectGetDTO } from "opensilex-core/index";
 // @ts-ignore
 import HttpResponse, { OpenSilexResponse } from "opensilex-core/HttpResponse";
+import {User} from "../../models/User";
 
 @Component
 export default class ExperimentList extends Vue {
@@ -209,7 +252,7 @@ export default class ExperimentList extends Vue {
   })
   noActions;
 
-  get user() {
+  get user(): User {
     return this.$store.state.user;
   }
 
@@ -221,6 +264,7 @@ export default class ExperimentList extends Vue {
   speciesByUri: Map<String, SpeciesDTO> = new Map<String, SpeciesDTO>();
 
   @Ref("tableRef") readonly tableRef!: any;
+  @Ref("projectSelector") readonly projectSelector!: any;
 
   refresh() {
     this.tableRef.selectAll = false;
@@ -238,6 +282,12 @@ export default class ExperimentList extends Vue {
     state: "",
   };
 
+    data(){
+    return {
+      SearchFiltersToggle : false,
+    }
+  }
+
   reset() {
     this.filter = {
       name: "",
@@ -248,6 +298,12 @@ export default class ExperimentList extends Vue {
       state: "",
     };   
     this.refresh();
+  }
+
+
+  refreshProjectSelector() {
+   
+    this.projectSelector.refreshModalSearch();
   }
 
   searchExperiments(options) {
@@ -403,16 +459,7 @@ export default class ExperimentList extends Vue {
       .catch(this.$opensilex.errorHandler);
   }
 
-  projectGetDTOToSelectNode(dto) {
-    if (dto) {
-      return {
-        id: dto.uri,
-        name: dto.shortname ? dto.shortname : dto.name,
-      };
-    }
-    return null;
-  } 
-    createDocument() {
+  createDocument() {
     this.documentForm.showCreateForm();
   }
 
@@ -450,19 +497,21 @@ export default class ExperimentList extends Vue {
     return null;
   }
 
-  loadProjects(projectsURIs) {
-      return this.$opensilex.getService("opensilex.ProjectsService")
-        .getProjectsByURI(projectsURIs)
-        .then((http: HttpResponse<OpenSilexResponse<Array<ProjectGetDTO>>>) => {
-            return (http && http.response) ? http.response.result : undefined
-    }).catch(this.$opensilex.errorHandler);
+  searchFiltersPannel() {
+    return  this.$t("searchfilter.label")
   }
-
 }
 </script>
 
 
 <style scoped lang="scss">
+.species-list {
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  display: inline-block;
+  max-width: 40vw;
+}
 </style>
 
 <i18n>

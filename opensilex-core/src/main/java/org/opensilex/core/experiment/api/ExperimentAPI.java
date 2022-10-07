@@ -13,65 +13,12 @@ import com.opencsv.CSVWriter;
 import com.univocity.parsers.csv.CsvParser;
 import com.univocity.parsers.csv.CsvParserSettings;
 import io.swagger.annotations.*;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.io.StringWriter;
-import static java.lang.Float.NaN;
-import org.opensilex.core.experiment.dal.ExperimentDAO;
-import org.opensilex.core.experiment.dal.ExperimentModel;
-import org.opensilex.server.response.ErrorResponse;
-import org.opensilex.server.response.ObjectUriResponse;
-import org.opensilex.server.response.PaginatedListResponse;
-import org.opensilex.server.response.SingleObjectResponse;
-import org.opensilex.sparql.exceptions.SPARQLAlreadyExistingUriException;
-import org.opensilex.sparql.service.SPARQLService;
-import org.opensilex.utils.OrderBy;
-import org.opensilex.utils.ListWithPagination;
-
-import javax.inject.Inject;
-import javax.validation.Valid;
-import javax.validation.constraints.Min;
-import javax.validation.constraints.NotNull;
-import javax.ws.rs.*;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.zone.ZoneRulesException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
-import javax.validation.constraints.Max;
-import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.glassfish.jersey.media.multipart.FormDataContentDisposition;
 import org.glassfish.jersey.media.multipart.FormDataParam;
 import org.opensilex.core.data.api.DataAPI;
-import static org.opensilex.core.data.api.DataAPI.CREDENTIAL_DATA_MODIFICATION_ID;
-import static org.opensilex.core.data.api.DataAPI.CREDENTIAL_DATA_MODIFICATION_LABEL_KEY;
-import static org.opensilex.core.data.api.DataAPI.DATA_EXAMPLE_CONFIDENCE;
-import static org.opensilex.core.data.api.DataAPI.DATA_EXAMPLE_MAXIMAL_DATE;
-import static org.opensilex.core.data.api.DataAPI.DATA_EXAMPLE_METADATA;
-import static org.opensilex.core.data.api.DataAPI.DATA_EXAMPLE_MINIMAL_DATE;
-import static org.opensilex.core.data.api.DataAPI.DATA_EXAMPLE_OBJECTURI;
-import static org.opensilex.core.data.api.DataAPI.DATA_EXAMPLE_PROVENANCEURI;
-import static org.opensilex.core.data.api.DataAPI.DATA_EXAMPLE_TIMEZONE;
-import static org.opensilex.core.data.api.DataAPI.DATA_EXAMPLE_VARIABLEURI;
 import org.opensilex.core.data.api.DataCSVValidationDTO;
-import static org.opensilex.core.data.api.DataCreationDTO.NAN_VALUES;
-import static org.opensilex.core.data.api.DataCreationDTO.NA_VALUES;
 import org.opensilex.core.data.api.DataGetDTO;
 import org.opensilex.core.data.dal.DataCSVValidationModel;
 import org.opensilex.core.data.dal.DataDAO;
@@ -79,16 +26,13 @@ import org.opensilex.core.data.dal.DataModel;
 import org.opensilex.core.data.dal.DataProvenanceModel;
 import org.opensilex.core.data.utils.DataValidateUtils;
 import org.opensilex.core.data.utils.ParsedDateTimeMongo;
-import org.opensilex.core.exception.CSVDataTypeException;
-import org.opensilex.core.exception.DataTypeException;
-import org.opensilex.core.exception.TimezoneAmbiguityException;
-import org.opensilex.core.exception.TimezoneException;
-import org.opensilex.core.exception.UnableToParseDateException;
+import org.opensilex.core.exception.*;
+import org.opensilex.core.experiment.dal.ExperimentDAO;
+import org.opensilex.core.experiment.dal.ExperimentModel;
 import org.opensilex.core.experiment.factor.api.FactorDetailsGetDTO;
 import org.opensilex.core.experiment.factor.dal.FactorDAO;
 import org.opensilex.core.experiment.factor.dal.FactorModel;
 import org.opensilex.core.experiment.utils.ImportDataIndex;
-import org.opensilex.core.ontology.dal.CSVCell;
 import org.opensilex.core.organisation.api.facitity.InfrastructureFacilityGetDTO;
 import org.opensilex.core.organisation.dal.InfrastructureFacilityModel;
 import org.opensilex.core.provenance.api.ProvenanceAPI;
@@ -112,13 +56,43 @@ import org.opensilex.security.authentication.ApiProtected;
 import org.opensilex.security.authentication.NotFoundURIException;
 import org.opensilex.security.authentication.injection.CurrentUser;
 import org.opensilex.security.user.dal.UserModel;
-import org.opensilex.server.response.ErrorDTO;
+import org.opensilex.server.response.*;
 import org.opensilex.server.rest.validation.ValidURI;
+import org.opensilex.sparql.csv.CSVCell;
 import org.opensilex.sparql.deserializer.URIDeserializer;
+import org.opensilex.sparql.exceptions.SPARQLAlreadyExistingUriException;
 import org.opensilex.sparql.response.NamedResourceDTO;
+import org.opensilex.sparql.service.SPARQLService;
 import org.opensilex.utils.ClassUtils;
+import org.opensilex.utils.ListWithPagination;
+import org.opensilex.utils.OrderBy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javax.inject.Inject;
+import javax.validation.Valid;
+import javax.validation.constraints.Max;
+import javax.validation.constraints.Min;
+import javax.validation.constraints.NotNull;
+import javax.ws.rs.*;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.io.StringWriter;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.zone.ZoneRulesException;
+import java.util.*;
+import java.util.stream.Collectors;
+
+import static org.opensilex.core.data.api.DataAPI.*;
 
 /**
  * @author Vincent MIGOT
@@ -139,12 +113,12 @@ public class ExperimentAPI {
     public static final String CREDENTIAL_EXPERIMENT_GROUP_LABEL_KEY = "credential-groups.experiments";
 
     public static final String CREDENTIAL_EXPERIMENT_MODIFICATION_ID = "experiment-modification";
-    public static final String CREDENTIAL_EXPERIMENT_MODIFICATION_LABEL_KEY = "credential.experiment.modification";
+    public static final String CREDENTIAL_EXPERIMENT_MODIFICATION_LABEL_KEY = "credential.default.modification";
 
     public static final String CREDENTIAL_EXPERIMENT_DELETE_ID = "experiment-delete";
-    public static final String CREDENTIAL_EXPERIMENT_DELETE_LABEL_KEY = "credential.experiment.delete";
+    public static final String CREDENTIAL_EXPERIMENT_DELETE_LABEL_KEY = "credential.default.delete";
 
-    public static final String EXPERIMENT_EXAMPLE_URI = "http://opensilex/set/experiments/ZA17";
+    public static final String EXPERIMENT_EXAMPLE_URI = "http://opensilex/experiment/id/ZA17";
     public static final String EXPERIMENT_API_VALUE = "Experiment URI";
 
 
@@ -187,7 +161,7 @@ public class ExperimentAPI {
             @ApiParam("Experiment description") @Valid ExperimentCreationDTO dto
     ) throws Exception {
         try {
-            ExperimentDAO dao = new ExperimentDAO(sparql);
+            ExperimentDAO dao = new ExperimentDAO(sparql, nosql);
             ExperimentModel model = dto.newModel();
             model.setCreator(currentUser.getUri());
 
@@ -225,7 +199,7 @@ public class ExperimentAPI {
     public Response updateExperiment(
             @ApiParam("Experiment description") @Valid ExperimentCreationDTO xpDto
     ) throws Exception {
-        ExperimentDAO dao = new ExperimentDAO(sparql);
+        ExperimentDAO dao = new ExperimentDAO(sparql, nosql);
 
         ExperimentModel model = xpDto.newModel();
         dao.update(model, currentUser);
@@ -251,7 +225,7 @@ public class ExperimentAPI {
     public Response getExperiment(
             @ApiParam(value = EXPERIMENT_API_VALUE, example = EXPERIMENT_EXAMPLE_URI, required = true) @PathParam("uri") @NotNull URI xpUri
     ) throws Exception {
-        ExperimentDAO dao = new ExperimentDAO(sparql);
+        ExperimentDAO dao = new ExperimentDAO(sparql, nosql);
         ExperimentModel model = dao.get(xpUri, currentUser);
         return new SingleObjectResponse<>(ExperimentGetDTO.fromModel(model)).getResponse();
     }
@@ -293,7 +267,7 @@ public class ExperimentAPI {
             @ApiParam(value = "Page number", example = "0") @QueryParam("page") @DefaultValue("0") @Min(0) int page,
             @ApiParam(value = "Page size", example = "20") @QueryParam("page_size") @DefaultValue("20") @Min(0) int pageSize
     ) throws Exception {
-        ExperimentDAO xpDao = new ExperimentDAO(sparql);
+        ExperimentDAO xpDao = new ExperimentDAO(sparql, nosql);
 
         ListWithPagination<ExperimentModel> resultList = xpDao.search(
                 year,
@@ -339,31 +313,9 @@ public class ExperimentAPI {
     public Response deleteExperiment(
             @ApiParam(value = EXPERIMENT_API_VALUE, example = EXPERIMENT_EXAMPLE_URI, required = true) @PathParam("uri") @NotNull URI xpUri
     ) throws Exception {
-        ExperimentDAO dao = new ExperimentDAO(sparql);
+        ExperimentDAO dao = new ExperimentDAO(sparql, nosql);
         dao.delete(xpUri, currentUser);
         return new ObjectUriResponse(xpUri).getResponse();
-    }
-
-    @GET
-    @Path("{uri}/facilities")
-    @ApiOperation("Get facilities involved in an experiment")
-    @ApiProtected
-    @Consumes(MediaType.APPLICATION_JSON)
-    @Produces(MediaType.APPLICATION_JSON)
-    @ApiResponses(value = {
-        @ApiResponse(code = 200, message = "Return facilities list", response = InfrastructureFacilityGetDTO.class, responseContainer = "List"),
-        @ApiResponse(code = 500, message = "Internal Server Error", response = ErrorResponse.class)
-    })
-    public Response getFacilities(
-            @ApiParam(value = EXPERIMENT_API_VALUE, example = EXPERIMENT_EXAMPLE_URI, required = true) @PathParam("uri") @NotNull URI xpUri
-    ) throws Exception {
-        ExperimentDAO xpDao = new ExperimentDAO(sparql);
-        List<InfrastructureFacilityModel> facilities = xpDao.getFacilities(xpUri, currentUser);
-
-        List<InfrastructureFacilityGetDTO> dtoList = facilities.stream().map((item) -> {
-            return InfrastructureFacilityGetDTO.getDTOFromModel(item, false);
-        }).collect(Collectors.toList());
-        return new PaginatedListResponse<>(dtoList).getResponse();
     }
 
     @GET
@@ -379,7 +331,7 @@ public class ExperimentAPI {
     public Response getAvailableFacilities(
             @ApiParam(value = EXPERIMENT_API_VALUE, example = EXPERIMENT_EXAMPLE_URI, required = true) @PathParam("uri") @NotNull URI xpUri
     ) throws Exception {
-        ExperimentDAO xpDao = new ExperimentDAO(sparql);
+        ExperimentDAO xpDao = new ExperimentDAO(sparql, nosql);
         List<InfrastructureFacilityModel> facilities = xpDao.getAvailableFacilities(xpUri, currentUser);
 
         List<InfrastructureFacilityGetDTO> dtoList = facilities.stream().map((item) -> {
@@ -400,7 +352,7 @@ public class ExperimentAPI {
     public Response getAvailableSpecies(
             @ApiParam(value = EXPERIMENT_API_VALUE, example = ExperimentAPI.EXPERIMENT_EXAMPLE_URI, required = true) @PathParam("uri") @NotNull URI xpUri
     ) throws Exception {
-        ExperimentDAO xpDAO = new ExperimentDAO(sparql);
+        ExperimentDAO xpDAO = new ExperimentDAO(sparql, nosql);
         xpDAO.validateExperimentAccess(xpUri, currentUser);
 
         SpeciesDAO dao = new SpeciesDAO(sparql);
@@ -422,7 +374,7 @@ public class ExperimentAPI {
     public Response getAvailableFactors(
             @ApiParam(value = EXPERIMENT_API_VALUE, example = ExperimentAPI.EXPERIMENT_EXAMPLE_URI, required = true) @PathParam("uri") @NotNull URI xpUri
     ) throws Exception {
-        ExperimentDAO xpDAO = new ExperimentDAO(sparql);
+        ExperimentDAO xpDAO = new ExperimentDAO(sparql, nosql);
         xpDAO.validateExperimentAccess(xpUri, currentUser);
 
         FactorDAO dao = new FactorDAO(sparql);
@@ -454,13 +406,13 @@ public class ExperimentAPI {
             @ApiParam(value = EXPERIMENT_API_VALUE, example = ExperimentAPI.EXPERIMENT_EXAMPLE_URI, required = true) @PathParam("uri") @NotNull URI xpUri,
             @ApiParam(value = "Search by objects uris", example = DATA_EXAMPLE_OBJECTURI) @QueryParam("scientific_objects") List<URI> objects
     ) throws Exception {
-        ExperimentDAO xpDAO = new ExperimentDAO(sparql);
+        ExperimentDAO xpDAO = new ExperimentDAO(sparql, nosql);
         xpDAO.validateExperimentAccess(xpUri, currentUser);
 
         DataDAO dao = new DataDAO(nosql, sparql, fs);
         List<URI> experiments = new ArrayList<>();
         experiments.add(xpUri);
-        List<VariableModel> variables = dao.getUsedVariables(currentUser, experiments, objects, null);
+        List<VariableModel> variables = dao.getUsedVariables(currentUser, experiments, objects, null, null);
 
         List<NamedResourceDTO> dtoList = variables.stream().map(NamedResourceDTO::getDTOFromModel).collect(Collectors.toList());
         return new PaginatedListResponse<>(dtoList).getResponse();
@@ -549,7 +501,7 @@ public class ExperimentAPI {
         }
 
         // test exp
-        ExperimentDAO xpDAO = new ExperimentDAO(sparql);
+        ExperimentDAO xpDAO = new ExperimentDAO(sparql, nosql);
 
         xpDAO.validateExperimentAccess(xpUri, currentUser);
 
@@ -573,7 +525,7 @@ public class ExperimentAPI {
                 pageSize
         );
 
-        ListWithPagination<DataGetDTO> resultDTOList = resultList.convert(DataGetDTO.class, DataGetDTO::getDtoFromModel);
+        ListWithPagination<DataGetDTO> resultDTOList = dao.modelListToDTO(resultList);
 
         return new PaginatedListResponse<>(resultDTOList).getResponse();
     }
@@ -662,7 +614,7 @@ public class ExperimentAPI {
         }
 
         // test exp
-        ExperimentDAO xpDAO = new ExperimentDAO(sparql);
+        ExperimentDAO xpDAO = new ExperimentDAO(sparql, nosql);
 
         xpDAO.validateExperimentAccess(xpUri, currentUser);
 
@@ -720,7 +672,7 @@ public class ExperimentAPI {
 
         return prepareCSVExport;
     }
-
+    @Deprecated
     @POST
     @Path("{uri}/data/import")
     @ApiOperation(value = "Import a CSV file for the given experiment URI and scientific object type.")
@@ -744,7 +696,7 @@ public class ExperimentAPI {
         DataDAO dataDAO = new DataDAO(nosql, sparql, fs);
 
         // test exp
-        ExperimentDAO xpDAO = new ExperimentDAO(sparql);
+        ExperimentDAO xpDAO = new ExperimentDAO(sparql, nosql);
 
         xpDAO.validateExperimentAccess(xpUri, currentUser);
 
@@ -781,10 +733,10 @@ public class ExperimentAPI {
                 List<BulkWriteError> bulkErrors = duplicateError.getWriteErrors();
                 for (int i = 0; i < bulkErrors.size(); i++) {
                     int index = bulkErrors.get(i).getIndex();
-                    DataGetDTO fromModel = DataGetDTO.getDtoFromModel(data.get(index));
-                    int variableIndex = validation.getHeaders().indexOf(fromModel.getVariable().toString());
+                    DataModel dataModel = data.get(index);
+                    int variableIndex = validation.getHeaders().indexOf(dataModel.getVariable().toString());
                     String variableName = validation.getHeadersLabels().get(variableIndex) + '(' + validation.getHeaders().get(variableIndex) + ')';
-                    CSVCell csvCell = new CSVCell(validation.getData().get(data.get(index)), validation.getHeaders().indexOf(fromModel.getVariable().toString()), fromModel.getValue().toString(), variableName);
+                    CSVCell csvCell = new CSVCell(validation.getData().get(data.get(index)), validation.getHeaders().indexOf(dataModel.getVariable().toString()), dataModel.getValue().toString(), variableName);
                     validation.addDuplicatedDataError(csvCell);
                 }
             } catch (MongoCommandException e) {
@@ -804,7 +756,7 @@ public class ExperimentAPI {
         csvValidation.setDataErrors(validation);
         return new SingleObjectResponse<>(csvValidation).getResponse();
     }
-
+    @Deprecated
     @POST
     @Path("{uri}/data/import_validation")
     @ApiOperation(value = "Import a CSV file for the given experiment URI and scientific object type.")
@@ -826,7 +778,7 @@ public class ExperimentAPI {
             @FormDataParam("file") FormDataContentDisposition fileContentDisposition) throws Exception {
         // test exp
         DataDAO dataDAO = new DataDAO(nosql,sparql,fs);
-        ExperimentDAO xpDAO = new ExperimentDAO(sparql);
+        ExperimentDAO xpDAO = new ExperimentDAO(sparql, nosql);
         xpDAO.validateExperimentAccess(xpUri, currentUser);
 
         // test prov
@@ -1019,15 +971,17 @@ public class ExperimentAPI {
 
                         URI varURI = URI.create(headerByIndex.get(colIndex));
                         dataModel.setVariable(varURI);
-                        dataModel.setValue(returnValidCSVDatum(varURI, values[colIndex].trim(), mapVariableUriDataType.get(varURI), rowIndex, colIndex, csvValidation));
-                            if (colIndex+1<values.length) {
-                                if (!headerByIndex.containsKey(colIndex+1) && values[colIndex+1] != null) {
-                                    dataModel.setRawData(returnValidRawData(varURI, values[colIndex+1].trim(), mapVariableUriDataType.get(varURI), rowIndex, colIndex+1, csvValidation));
-                                }
-                            }                        
+                        DataValidateUtils.checkAndConvertValue(dataModel, varURI, values[colIndex].trim(), mapVariableUriDataType.get(varURI), rowIndex, colIndex, csvValidation);
+
+                        if (colIndex+1<values.length) {
+                            if (!headerByIndex.containsKey(colIndex+1) && values[colIndex+1] != null) {
+                                dataModel.setRawData(DataValidateUtils.returnValidRawData(varURI, values[colIndex+1].trim(), mapVariableUriDataType.get(varURI), rowIndex, colIndex+1, csvValidation));
+                            }
+                        }
+
                         csvValidation.addData(dataModel, rowIndex);
                         // check for duplicate data
-                        ImportDataIndex importDataIndex = new ImportDataIndex(parsedDateTimeMongo.getInstant(), varURI, experimentURI, object.getUri());
+                        ImportDataIndex importDataIndex = new ImportDataIndex(parsedDateTimeMongo.getInstant(), varURI, experimentURI, object.getUri(), null);
                         if (!duplicateDataByIndex.contains(importDataIndex)) {
                             duplicateDataByIndex.add(importDataIndex);
                         } else {
@@ -1062,160 +1016,6 @@ public class ExperimentAPI {
             }
 
         return object;
-    }
-
-    public static List<Object> returnValidRawData(URI variable, String rawDataCell, URI dataType, int dataIndex, int colIndex, DataCSVValidationModel csvValidation) throws CSVDataTypeException {
-        String variableName = csvValidation.getHeadersLabels().get(colIndex) + '(' + csvValidation.getHeaders().get(colIndex) + ')';
-        List<Object> formatedRawData = Arrays.asList(rawDataCell.split(","));
-        if (dataType == null) {
-            return Arrays.asList(rawDataCell.split(","));
-        } else {
-            if (dataType.toString().equals("xsd:integer")) {
-                try {                    
-                    List<Object> rawData = new ArrayList<>();
-                    for (Object val:formatedRawData) {
-                        rawData.add(Integer.valueOf(val.toString()));
-                    }
-                    return rawData;
-                } catch (NumberFormatException e) {
-                    CSVCell errorCell = new CSVCell(dataIndex, colIndex, rawDataCell, variableName);
-                    throw new CSVDataTypeException(variable, rawDataCell, dataType, dataIndex, errorCell);
-                }
-            }
-
-        }
-        if (dataType.toString().equals("xsd:decimal")) {
-            try {
-                List<Object> rawData = new ArrayList<>();
-                for (Object val:formatedRawData) {
-                    rawData.add(Double.valueOf(val.toString()));
-                }
-                return rawData;
-            } catch (NumberFormatException e) {
-                CSVCell errorCell = new CSVCell(dataIndex, colIndex, rawDataCell, variableName);
-                throw new CSVDataTypeException(variable, rawDataCell, dataType, dataIndex, errorCell);
-            }
-        }
-        if (dataType.toString().equals("xsd:boolean")) {
-            List<Object> rawData = new ArrayList<>();
-            for (Object val:formatedRawData) {
-                Boolean toBooleanObject = BooleanUtils.toBooleanObject(val.toString());
-                if (toBooleanObject != null) {
-                    rawData.add(toBooleanObject);
-                } else {
-                    CSVCell errorCell = new CSVCell(dataIndex, colIndex, rawDataCell, variableName);
-                    throw new CSVDataTypeException(variable, rawDataCell, dataType, dataIndex, errorCell);                    
-                }
-            }
-            return rawData;
-        }
-
-        if (dataType.toString().equals("xsd:date")) {
-            List<Object> rawData = new ArrayList<>();
-            for (Object val:formatedRawData) {
-                if (val instanceof String && DataValidateUtils.isDate(val.toString())) {
-                    rawData.add(val);
-                } else {
-                    CSVCell errorCell = new CSVCell(dataIndex, colIndex, rawDataCell, variableName);
-                    throw new CSVDataTypeException(variable, rawDataCell, dataType, dataIndex, errorCell);                    
-                }
-            }
-            return rawData;
-        }
-        if (dataType.toString().equals("xsd:datetime")) {
-            List<Object> rawData = new ArrayList<>();
-            for (Object val:formatedRawData) {
-                if (val instanceof String && DataValidateUtils.isDateTime(val.toString())) {
-                    rawData.add(val);
-                } else {
-                    CSVCell errorCell = new CSVCell(dataIndex, colIndex, rawDataCell, variableName);
-                    throw new CSVDataTypeException(variable, rawDataCell, dataType, dataIndex, errorCell);                    
-                }
-            }
-            return rawData;
-        }
-        if (dataType.toString().equals("xsd:string")) {
-            List<Object> rawData = new ArrayList<>();
-            for (Object val:formatedRawData) {
-                if (val instanceof String) {
-                    rawData.add(val);
-                } else {
-                    CSVCell errorCell = new CSVCell(dataIndex, colIndex, rawDataCell, variableName);
-                    throw new CSVDataTypeException(variable, rawDataCell, dataType, dataIndex, errorCell);                    
-                }
-            }
-            return rawData;
-        }
-
-        return new ArrayList<>();
-    }
-    
-    public static Object returnValidCSVDatum(URI variable, Object value, URI dataType, int dataIndex, int colIndex, DataCSVValidationModel csvValidation) throws CSVDataTypeException {
-        String variableName = csvValidation.getHeadersLabels().get(colIndex) + '(' + csvValidation.getHeaders().get(colIndex) + ')';
-
-        if (Arrays.asList(NAN_VALUES).contains(value)) {
-            value = NaN;
-        } else if (Arrays.asList(NA_VALUES).contains(value)) {
-            return null;
-        }
-
-        if (dataType == null) {
-            return value;
-        } else {
-            if (dataType.toString().equals("xsd:integer")) {
-                try {
-                    return Integer.valueOf(value.toString());
-                } catch (NumberFormatException e) {
-                    CSVCell errorCell = new CSVCell(dataIndex, colIndex, value.toString(), variableName);
-                    throw new CSVDataTypeException(variable, value, dataType, dataIndex, errorCell);
-                }
-            }
-
-        }
-        if (dataType.toString().equals("xsd:decimal")) {
-            try {
-                return Double.valueOf(value.toString());
-            } catch (NumberFormatException e) {
-                CSVCell errorCell = new CSVCell(dataIndex, colIndex, value.toString(), variableName);
-                throw new CSVDataTypeException(variable, value, dataType, dataIndex, errorCell);
-            }
-        }
-        if (dataType.toString().equals("xsd:boolean")) {
-            Boolean toBooleanObject = BooleanUtils.toBooleanObject(value.toString());
-            if (Objects.equals(toBooleanObject, Boolean.FALSE) || Objects.equals(toBooleanObject, Boolean.TRUE)) {
-                return toBooleanObject;
-            } else {
-                CSVCell errorCell = new CSVCell(dataIndex, colIndex, value.toString(), variableName);
-                throw new CSVDataTypeException(variable, value, dataType, dataIndex, errorCell);
-            }
-        }
-
-        if (dataType.toString().equals("xsd:date")) {
-            if (value instanceof String && DataValidateUtils.isDate(value.toString())) {
-                return value;
-            } else {
-                CSVCell errorCell = new CSVCell(dataIndex, colIndex, value.toString(), variableName);
-                throw new CSVDataTypeException(variable, value, dataType, dataIndex, errorCell);
-            }
-        }
-        if (dataType.toString().equals("xsd:datetime")) {
-            if (value instanceof String && DataValidateUtils.isDateTime(value.toString())) {
-                return value;
-            } else {
-                CSVCell errorCell = new CSVCell(dataIndex, colIndex, value.toString(), variableName);
-                throw new CSVDataTypeException(variable, value, dataType, dataIndex, errorCell);
-            }
-        }
-        if (dataType.toString().equals("xsd:string")) {
-            if ((value instanceof String)) {
-                return value;
-            } else {
-                CSVCell errorCell = new CSVCell(dataIndex, colIndex, value.toString(), variableName);
-                throw new CSVDataTypeException(variable, value, dataType, dataIndex, errorCell);
-            }
-        }
-
-        return value;
     }
 
     /**
@@ -1259,7 +1059,7 @@ public class ExperimentAPI {
     ) throws Exception {
 
         // test exp
-        ExperimentDAO xpDAO = new ExperimentDAO(sparql);
+        ExperimentDAO xpDAO = new ExperimentDAO(sparql, nosql);
         xpDAO.validateExperimentAccess(xpUri, currentUser);
 
         DataDAO dataDAO = new DataDAO(nosql, sparql, fs);
@@ -1294,7 +1094,7 @@ public class ExperimentAPI {
     public Response getExperimentsByURIs(
             @ApiParam(value = "Experiments URIs", required = true) @QueryParam("uris") @NotNull List<URI> uris
     ) throws Exception {
-        ExperimentDAO dao = new ExperimentDAO(sparql);
+        ExperimentDAO dao = new ExperimentDAO(sparql, nosql);
         List<ExperimentModel> models = dao.getByURIs(uris, currentUser);
 
         if (!models.isEmpty()) {

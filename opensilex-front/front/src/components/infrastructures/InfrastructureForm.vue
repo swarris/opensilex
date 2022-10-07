@@ -21,27 +21,42 @@
     <!-- Type -->
     <opensilex-TypeForm
       :type.sync="form.rdf_type"
-      :baseType="$opensilex.Oeso.INFRASTRUCTURE_TYPE_URI"
+      :baseType="$opensilex.Foaf.ORGANIZATION_TYPE_URI"
       :required="true"
       placeholder="InfrastructureForm.form-type-placeholder"
     ></opensilex-TypeForm>
 
-    <!-- Parent -->
+    <!-- Parents -->
     <opensilex-SelectForm
-      :selected.sync="form.parent"
+      :selected.sync="form.parents"
       :options="parentOptions"
+      :multiple="true"
       label="component.common.parent"
       placeholder="InfrastructureForm.form-parent-placeholder"
     ></opensilex-SelectForm>
+
+    <!-- Groupes -->
+    <opensilex-GroupSelector
+        label="InfrastructureForm.form-group-label"
+        :groups.sync="form.groups"
+        :multiple="true"
+    ></opensilex-GroupSelector>
+
+    <!-- Facilities -->
+    <opensilex-FacilitySelector
+        label="InfrastructureForm.form-facilities-label"
+        :facilities.sync="form.facilities"
+        :multiple="true"
+    >
+    </opensilex-FacilitySelector>
   </b-form>
 </template>
 
 <script lang="ts">
-import { Component, Prop } from "vue-property-decorator";
+import {Component, Prop} from "vue-property-decorator";
 import Vue from "vue";
-import HttpResponse, { OpenSilexResponse } from "../../lib/HttpResponse";
-// @ts-ignore
-import { ResourceTreeDTO } from "opensilex-core/index";
+import HttpResponse, {OpenSilexResponse} from "../../lib/HttpResponse";
+import { ResourceDagDTO } from 'opensilex-core/index';
 
 @Component
 export default class InfrastructureForm extends Vue {
@@ -58,7 +73,9 @@ export default class InfrastructureForm extends Vue {
         uri: null,
         rdf_type: null,
         name: "",
-        parent: null,
+        parents: [],
+        groups: [],
+        facilities: []
       };
     },
   })
@@ -68,10 +85,10 @@ export default class InfrastructureForm extends Vue {
     this.uriGenerated = true;
     if (this.parentInfrastructures == null) {
       this.$opensilex
-        .getService("opensilex-core.OrganisationsService")
-        .searchInfrastructuresTree()
+        .getService("opensilex-core.OrganizationsService")
+        .searchInfrastructures()
         .then(
-          (http: HttpResponse<OpenSilexResponse<Array<ResourceTreeDTO>>>) => {
+          (http: HttpResponse<OpenSilexResponse<Array<ResourceDagDTO>>>) => {
             this.setParentInfrastructures(http.response.result);
           }
         )
@@ -84,7 +101,9 @@ export default class InfrastructureForm extends Vue {
       uri: null,
       rdf_type: null,
       name: "",
-      parent: null,
+      parents: [],
+      groups: [],
+      facilities: []
     };
   }
 
@@ -96,10 +115,10 @@ export default class InfrastructureForm extends Vue {
   init() {
     if (this.parentInfrastructures == null) {
       this.$opensilex
-        .getService("opensilex-core.OrganisationsService")
-        .searchInfrastructuresTree()
+        .getService("opensilex-core.OrganizationsService")
+        .searchInfrastructures()
         .then(
-          (http: HttpResponse<OpenSilexResponse<Array<ResourceTreeDTO>>>) => {
+          (http: HttpResponse<OpenSilexResponse<Array<ResourceDagDTO>>>) => {
             this.setParentInfrastructures(http.response.result);
           }
         )
@@ -109,17 +128,23 @@ export default class InfrastructureForm extends Vue {
 
   get parentOptions() {
     if (this.editMode) {
-      return this.$opensilex.buildTreeListOptions(this.parentInfrastructures, {
-        disableSubTree: this.form.uri,
+      return this.$opensilex.buildTreeFromDag(this.parentInfrastructures, {
+        disableSubTree: this.form.uri
       });
     } else {
-      return this.$opensilex.buildTreeListOptions(this.parentInfrastructures);
+      return this.$opensilex.buildTreeFromDag(this.parentInfrastructures);
     }
   }
 
+  cleanFormBeforeSend(form) {
+    // I don't know why but sometimes this array contains null values so we filter them out
+    form.parents = form.parents.filter(parent => parent);
+  }
+
   create(form) {
+    this.cleanFormBeforeSend(form);
     return this.$opensilex
-      .getService("opensilex.OrganisationsService")
+      .getService("opensilex.OrganizationsService")
       .createInfrastructure(form)
       .then((http: HttpResponse<OpenSilexResponse<any>>) => {
         let uri = http.response.result;
@@ -141,9 +166,10 @@ export default class InfrastructureForm extends Vue {
   }
 
   update(form) {
+    this.cleanFormBeforeSend(form);
     delete form.rdf_type_name;
     return this.$opensilex
-      .getService("opensilex.OrganisationsService")
+      .getService("opensilex.OrganizationsService")
       .updateInfrastructure(form)
       .then((http: HttpResponse<OpenSilexResponse<any>>) => {
         let uri = http.response.result;
@@ -165,6 +191,8 @@ en:
     form-type-placeholder: Select organization type
     form-parent-placeholder: Select parent organization
     infrastructure-already-exists: Organization already exists with this URI
+    form-group-label: Groups
+    form-facilities-label: Facilities
 fr:
   InfrastructureForm:
     infrastructure-uri: URI de l'organisation
@@ -172,4 +200,6 @@ fr:
     form-type-placeholder: Sélectionner le type d'organisation
     form-parent-placeholder: Sélectionner l'organisation parente
     infrastructure-already-exists: Une organisation existe déjà avec cette URI
+    form-group-label: Groupes
+    form-facilities-labe: Installations environnementales
 </i18n>

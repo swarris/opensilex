@@ -5,9 +5,10 @@
  */
 package org.opensilex.front;
 
-import java.util.List;
 import org.opensilex.config.ConfigDescription;
 import org.opensilex.front.config.CustomMenuItem;
+
+import java.util.List;
 
 /**
  *
@@ -67,4 +68,14 @@ public interface FrontConfig {
     )
     List<CustomMenuItem> customMenu();
 
+    @ConfigDescription(
+            value = "Geocoding service to autocomplete the address",
+            defaultString = "Photon"
+    )
+    String geocodingService();
+
+    @ConfigDescription(
+            value = "Version label to display at the top of the app"
+    )
+    String versionLabel();
 }

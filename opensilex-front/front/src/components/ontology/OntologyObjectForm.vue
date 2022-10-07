@@ -1,335 +1,154 @@
 <template>
-  <b-form>
-    <!-- URI -->
-    <opensilex-UriForm
-      :uri.sync="form.uri"
-      label="OntologyObjectForm.uri-label"
-      helpMessage="component.common.uri-help-message"
-      :editMode="editMode"
-      :generated.sync="uriGenerated"
-    ></opensilex-UriForm>
+    <b-form>
+        <!-- URI -->
+        <opensilex-UriForm
+            :uri.sync="form.uri"
+            label="OntologyObjectForm.uri-label"
+            helpMessage="component.common.uri-help-message"
+            :editMode="editMode"
+            :generated.sync="uriGenerated"
+        ></opensilex-UriForm>
 
-    <!-- Name -->
-    <opensilex-InputForm
-      :value.sync="form.name"
-      label="component.common.name"
-      type="text"
-      :required="true"
-      placeholder="OntologyObjectForm.form-name-placeholder"
-    ></opensilex-InputForm>
+        <!-- Name -->
+        <opensilex-InputForm
+            :value.sync="form.name"
+            label="component.common.name"
+            type="text"
+            :required="true"
+            placeholder="OntologyObjectForm.form-name-placeholder"
+        ></opensilex-InputForm>
 
-    <!-- Type -->
-    <opensilex-TypeForm
-      v-if="baseType"
-      :type.sync="form.rdf_type"
-      :baseType="baseType"
-      :required="true"
-      :disabled="editMode"
-      placeholder="OntologyObjectForm.form-type-placeholder"
-      @update:type="typeSwitch"
-    ></opensilex-TypeForm>
+        <!-- Type -->
+        <opensilex-TypeForm
+            v-if="baseType"
+            :type.sync="form.rdf_type"
+            :baseType="baseType"
+            :required="true"
+            :disabled="editMode"
+            placeholder="OntologyObjectForm.form-type-placeholder"
+            @select="typeSwitch($event.id,false)"
+        ></opensilex-TypeForm>
 
-    <div v-for="(v, index) in typeProperties" v-bind:key="index">
-      <component
-        :is="getInputComponent(v.definition, v.property)"
-        :property="v.definition"
-        :value.sync="v.property"
-        @update:value="updateRelation($event, v.definition.property)"
-        :context="context"
-      ></component>
-    </div>
-    <slot v-if="form.rdf_type" v-bind:form="form"></slot>
-  </b-form>
+        <!-- Custom properties -->
+        <opensilex-OntologyRelationsForm
+            v-if="baseType && loadCustomProperties"
+            ref="ontologyRelationsForm"
+            :rdfType="this.form.rdf_type"
+            :relations="this.form.relations"
+            :excludedProperties="this.excludedProperties"
+            :customComponentProps="this.customComponentProps"
+            :baseType="this.baseType"
+            :editMode="editMode"
+            :context="context ? { experimentURI: context} : undefined"
+            :initHandler="this.initHandler"
+        ></opensilex-OntologyRelationsForm>
+
+        <slot v-if="form.rdf_type" v-bind:form="form"></slot>
+    </b-form>
 </template>
 
 <script lang="ts">
-import { Component, Prop } from "vue-property-decorator";
+import {Component, Prop, Ref} from "vue-property-decorator";
 import Vue from "vue";
+import OntologyRelationsForm from "./OntologyRelationsForm.vue";
+import OpenSilexVuePlugin from "../../models/OpenSilexVuePlugin";
+import {MultiValuedRDFObjectRelation} from "./models/MultiValuedRDFObjectRelation";
+import Rdfs from "../../ontologies/Rdfs";
 
 @Component
+/**
+ * Component used for handling URI, type, name and custom properties for a given type
+ */
 export default class OntologyObjectForm extends Vue {
-  $opensilex: any;
 
-  uriGenerated = true;
+    $opensilex: OpenSilexVuePlugin;
+    uriGenerated = true;
 
-  @Prop()
-  editMode;
+    @Ref("ontologyRelationsForm") readonly ontologyRelationsForm!: OntologyRelationsForm;
 
-  @Prop({
-    default: () => {
-      return {
-        uri: null,
-        rdf_type: null,
-        name: "",
-        relations: []
-      };
+    @Prop()
+    editMode;
+
+    excludedProperties = new Set<string>([Rdfs.getShortURI(Rdfs.LABEL)]);
+
+    customComponentProps = new Map<string, Map<string, any>>();
+
+    @Prop({
+        default: () => {
+            return {
+                uri: null,
+                rdf_type: null,
+                name: "",
+                relations: []
+            };
+        }
+    })
+    form;
+
+    reset() {
+        this.uriGenerated = true;
     }
-  })
-  form;
 
-  reset() {
-    this.uriGenerated = true;
-  }
-
-  getInputComponent(property, vp) {
-
-    console.debug("definition of "  + property.name);
-    console.debug(JSON.stringify(property));
-    console.debug(property);
-    console.debug("property");
-    console.debug(vp);
-    if (
-      property.input_components_by_property &&
-      property.input_components_by_property[property.property]
-    ) {
-      return property.input_components_by_property[property.property];
+    getEmptyForm() {
+        return {
+            uri: null,
+            rdf_type: null,
+            name: "",
+            relations: []
+        };
     }
-    return property.input_component;
-  }
 
-  updateRelation(value, property) {
-    console.debug("event");
-    console.debug(value);
-    console.debug("definition.property");
-    console.debug(property);
-  // this.form.relations.filter(function(a){return a.property !== property;});
-    for(var i = this.form.relations.length -1; i >= 0 ; i--){
-      if(this.form.relations[i].property === property){
-          this.form.relations.splice(i, 1);
-      }
-    }
-    
-    if (value && Array.isArray(value)) {
-      value.forEach(element => {
-        this.form.relations.push({
-          property: property,
-          value: element
-        });
-      });
-    } else {
-      this.form.relations.push({
-        property: property,
-        value: value
-      });
-    }
-  }
-
-  getEmptyForm() {
-    return {
-      uri: null,
-      rdf_type: null,
-      name: "",
-      relations: []
-    };
-  }
-
-  setBaseType(baseType) {
-    this.baseType = baseType;
-    return this;
-  }
-
-  context = {};
-
-  setContext(context) {
-    this.context = context;
-    return this;
-  }
-
-  initHandler = () => {};
-  setInitObjHandler(handler) {
-    this.initHandler = handler;
-  }
-
-  propertyFilter = property => property;
-  setTypePropertyFilterHandler(handler) {
-    this.propertyFilter = handler;
-  }
-
-  baseType = null;
-
-  typeModel = null;
-
-  get typeProperties() {
-    let internalTypeProperties = [];
-    if (this.typeModel) {
-      for (let i in this.typeModel.data_properties) {
-        let dataProperty = this.typeModel.data_properties[i];
-        if (dataProperty.property != "rdfs:label") {
-          let propValue = this.valueByProperties[dataProperty.property];
-          if (dataProperty.is_list) {
-            if (!propValue) {
-              propValue = [];
-            } else if (!Array.isArray(propValue)) {
-              propValue = [propValue];
+    setBaseType(baseType) {
+        this.baseType = baseType;
+        // ontologyReleationsForm exists only after baseType has been set, so we wait the next tick
+        this.$nextTick(() => {
+            if (this.ontologyRelationsForm) {
+              this.ontologyRelationsForm.typeSwitch(baseType, true);
             }
-          }
-          internalTypeProperties.push({
-            definition: dataProperty,
-            property: propValue
-          });
-        }
-      }
-
-      for (let i in this.typeModel.object_properties) {
-        let objectProperty = this.typeModel.object_properties[i];
-        let propValue = this.valueByProperties[objectProperty.property];
-        if (objectProperty.is_list) {
-          if (!propValue) {
-            propValue = [];
-          } else if (!Array.isArray(propValue)) {
-            propValue = [propValue];
-          }
-        }
-        internalTypeProperties.push({
-          definition: objectProperty,
-          property: propValue
         });
-      }
     }
 
-    let pOrder = [];
-    if (this.typeModel) {
-      pOrder = this.typeModel.properties_order;
+    context: string = "";
+
+    setContext(context) {
+        this.context = context;
+        return this;
     }
-    internalTypeProperties.sort((a, b) => {
-      let aProp = a.definition.property;
-      let bProp = b.definition.property;
-      if (aProp == bProp) {
-        return 0;
-      }
 
-      if (aProp == "rdfs:label") {
-        return -1;
-      }
+    initHandler = (relation: MultiValuedRDFObjectRelation) => {};
 
-      if (bProp == "rdfs:label") {
-        return 1;
-      }
+    setInitHandler(handler) {
+        this.initHandler = handler;
+    }
 
-      let aIndex = pOrder.indexOf(aProp);
-      let bIndex = pOrder.indexOf(bProp);
-      if (aIndex == -1) {
-        if (bIndex == -1) {
-          return aProp.localeCompare(bProp);
-        } else {
-          return -1;
+    propertyFilter = property => property;
+
+    setTypePropertyFilterHandler(handler) {
+        this.propertyFilter = handler;
+    }
+
+    baseType = null;
+
+    typeSwitch(type: string, initialLoad: boolean) {
+        if(this.ontologyRelationsForm){
+            this.ontologyRelationsForm.typeSwitch(type, initialLoad);
         }
-      } else {
-        if (bIndex == -1) {
-          return 1;
-        } else {
-          return aIndex - bIndex;
-        }
-      }
-    });
-
-    internalTypeProperties = this.propertyFilter.call(
-      null,
-      internalTypeProperties
-    );
-
-    return internalTypeProperties;
-  }
-
-  get valueByProperties(): Object {
-    let valueByProperties = {};
-
-    for (let i in this.form.relations) {
-      let relation = this.form.relations[i];
-      if (
-        valueByProperties[relation.property] &&
-        !Array.isArray(valueByProperties[relation.property])
-      ) {
-        valueByProperties[relation.property] = [
-          valueByProperties[relation.property]
-        ];
-      }
-
-      if (Array.isArray(valueByProperties[relation.property])) {
-        valueByProperties[relation.property].push(relation.value);
-      } else {
-        valueByProperties[relation.property] = relation.value;
-      }
     }
 
-    return valueByProperties;
-  }
-
-  typeSwitch(type) {
-    if (type) {
-      return this.$opensilex
-        .getService("opensilex.VueJsOntologyExtensionService")
-        .getRDFTypeProperties(this.form.rdf_type, this.baseType)
-        .then(http => {
-          this.typeModel = http.response.result;
-          if (!this.editMode) {
-            let relations = [];
-            for (let i in this.typeModel.data_properties) {
-              let dataProperty = this.typeModel.data_properties[i];
-              if (dataProperty.is_list) {
-                relations.push({
-                  value: [],
-                  property: dataProperty.property
-                });
-              } else {
-                relations.push({
-                  value: null,
-                  property: dataProperty.property
-                });
-              }
-            }
-
-            for (let i in this.typeModel.object_properties) {
-              let objectProperty = this.typeModel.object_properties[i];
-              if (objectProperty.is_list) {
-                relations.push({
-                  value: [],
-                  property: objectProperty.property
-                });
-              } else {
-                relations.push({
-                  value: null,
-                  property: objectProperty.property
-                });
-              }
-            }
-
-            this.form.relations = relations;
-
-            this.initHandler.call(null, this.form);
-          }
-        });
-    } else {
-      this.typeModel = null;
+    setExcludedProperties(excludedProperties: Set<string>) {
+        this.excludedProperties = excludedProperties;
     }
-  }
 
-  loadProperties(properties, valueByProperties) {
-    for (let i in properties) {
-      let property = properties[i];
-      if (valueByProperties[property.property]) {
-        if (
-          property.is_list &&
-          !Array.isArray(valueByProperties[property.property])
-        ) {
-          this.typeProperties.push({
-            definition: property,
-            property: [valueByProperties[property.property]]
-          });
-        } else {
-          this.typeProperties.push({
-            definition: property,
-            property: valueByProperties[property.property]
-          });
-        }
-      } else if (property.is_list) {
-        this.typeProperties.push({
-          definition: property,
-          property: []
-        });
-      }
+    setCustomComponentProps(customComponentProps: Map<string, Map<string, any>>){
+        this.customComponentProps = customComponentProps;
     }
-  }
+
+    loadCustomProperties: boolean = true;
+
+    setLoadCustomProperties(loadCustomProperties: boolean){
+        this.loadCustomProperties = loadCustomProperties;
+    }
+
 }
 </script>
 
@@ -338,16 +157,17 @@ export default class OntologyObjectForm extends Vue {
 
 <i18n>
 en:
-  OntologyObjectForm:
-    uri-label: Object URI
-    form-name-placeholder: Enter object name
-    form-type-placeholder: Select object type
+    OntologyObjectForm:
+        uri-label: Object URI
+        form-name-placeholder: Enter object name
+        form-type-placeholder: Select object type
 
 fr:
-  OntologyObjectForm:
-    uri-label: URI de l'objet
-    form-name-placeholder: Saisir le nom de l'objet
-    form-type-placeholder: Sélectionner le type de l'objet
+    OntologyObjectForm:
+        uri-label: URI de l'objet
+        form-name-placeholder: Saisir le nom de l'objet
+        form-type-placeholder: Sélectionner le type de l'objet
+
 </i18n>
 
 

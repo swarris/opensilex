@@ -59,7 +59,9 @@ public class IrodsFileSystemConnection extends BaseService implements Service, F
 
     @Override
     public void shutdown() throws Exception {
-        Files.deleteIfExists(tmpDirectory);
+        if(tmpDirectory != null){
+            Files.deleteIfExists(tmpDirectory);
+        }
     }
 
     private void irodsCommand(String... args) throws IOException {
@@ -106,6 +108,21 @@ public class IrodsFileSystemConnection extends BaseService implements Service, F
     public String readFile(Path filePath) throws IOException {
         byte[] bytes = readFileAsByteArray(filePath);
         return new String(bytes,StandardCharsets.UTF_8);
+        if (filePath.isAbsolute()) {
+            return filePath;
+        } else {
+            return this.getStorageBasePath().resolve(filePath).toAbsolutePath();
+        }
+        if (filePath.isAbsolute()) {
+            return filePath;
+        } else {
+            return this.getStorageBasePath().resolve(filePath).toAbsolutePath();
+        }
+        if (filePath.isAbsolute()) {
+            return filePath;
+        } else {
+            return this.getStorageBasePath().resolve(filePath).toAbsolutePath();
+        }
     }
 
     @Override

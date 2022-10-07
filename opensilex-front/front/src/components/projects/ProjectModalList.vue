@@ -1,5 +1,6 @@
 <template>
   <b-modal ref="modalRef" size="xl" :static="true">
+
     <template v-slot:modal-title>
       <i class="ik ik-search mr-1"></i>
       {{ $t('component.project.filter-description') }}
@@ -11,31 +12,35 @@
         class="btn btn-secondary"
         v-on:click="hide(false)"
       >{{ $t('component.common.close') }}</button>
+      
       <button
         type="button"
-        class="btn btn-primary"
+        class="btn greenThemeColor"
         v-on:click="hide(true)"
       >{{ $t('component.common.validateSelection') }}</button>
     </template>
 
-    <div class="card">
+    <div>
       <opensilex-ProjectList 
         ref="projectSelection"
         :isSelectable="true"
-        :maximumSelectedRows="maximumSelectedRows"
         :noActions="true"
+        :pageSize="5"
         :noUpdateURL="true"
+        @select="$emit('select', $event)"
+        @unselect="$emit('unselect', $event)"
+        @selectall="$emit('selectall', $event)"
         ></opensilex-ProjectList>
     </div>
   </b-modal>
 </template>
 
 <script lang="ts">
-import { Component, Ref, Prop } from "vue-property-decorator";
-import ProjectList from "./ProjectList.vue";
+import Vue from "vue";
+import { Component, Ref, PropSync} from "vue-property-decorator";
 
 @Component
-export default class ProjectModalList extends ProjectList {
+export default class ProjectModalList extends Vue {
   @Ref("projectSelection") readonly projectSelection!: any;
 
   unSelect(row) {
@@ -53,6 +58,9 @@ export default class ProjectModalList extends ProjectList {
     if (validate) {
       this.$emit("onValidate", this.projectSelection.getSelected());
     }
+  }
+   refresh() {
+    this.projectSelection.refresh();
   }
 }
 </script>

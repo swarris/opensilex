@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -70,7 +71,6 @@ import org.opensilex.core.provenance.dal.ProvenanceDAO;
 import org.opensilex.core.provenance.dal.ProvenanceModel;
 import org.opensilex.core.scientificObject.dal.ScientificObjectModel;
 import org.opensilex.fs.service.FileStorageService;
-import org.opensilex.fs.uri.URIFileSystemConnection;
 import org.opensilex.nosql.exceptions.NoSQLInvalidURIException;
 import org.opensilex.nosql.exceptions.NoSQLInvalidUriListException;
 import org.opensilex.nosql.exceptions.NoSQLTooLargeSetException;
@@ -91,8 +91,6 @@ import org.opensilex.sparql.service.SPARQLService;
 import org.opensilex.sparql.utils.Ontology;
 import org.opensilex.utils.ListWithPagination;
 import org.opensilex.utils.OrderBy;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -230,6 +228,15 @@ public class DataFilesAPI {
                         ).getResponse();
                     }
                     model.setFilename(absoluteFilePath.getFileName().toString());
+
+                java.nio.file.Path absoluteFilePath = fs.getAbsolutePath(FS_FILE_PREFIX, Paths.get(model.getPath()));
+
+                if (model.getArchive() == null && !fs.exist(FS_FILE_PREFIX, absoluteFilePath)) {
+                    return new ErrorResponse(
+                                Response.Status.BAD_REQUEST,
+                                "File not found",
+                                absoluteFilePath.toString()
+                    ).getResponse();
                 }
                 else {
                     if (!fs.exist(FS_FILE_PREFIX, uri)) {
@@ -304,9 +311,11 @@ public class DataFilesAPI {
 
             java.nio.file.Path filePath = Paths.get(description.getPath());
             byte[] fileContent = fs.readFileAsByteArray(FS_FILE_PREFIX, filePath);
-
+            if(description.getArchive() != null) {
+                return Response.status(Response.Status.NOT_IMPLEMENTED.getStatusCode()).build();
+            }
             if (ArrayUtils.isEmpty(fileContent)) {
-                return Response.status(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode()).build();
+                return Response.status(Response.Status.NOT_FOUND.getStatusCode()).build();
             }
             return Response.ok(fileContent, MediaType.APPLICATION_OCTET_STREAM)
                     .header("Content-Disposition", "attachment; filename=\"" + filePath.getFileName().toString() + "\"") //optional
@@ -315,7 +324,7 @@ public class DataFilesAPI {
         } catch (NoSQLInvalidURIException e) {
             return Response.status(Response.Status.NOT_FOUND.getStatusCode()).build();           
         } catch (IOException e) {
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode()).build();           
+            return Response.status(Response.Status.NOT_FOUND.getStatusCode()).build();
         } 
     }
     

@@ -6,11 +6,14 @@
 package org.opensilex.front.vueOwlExtension.dal;
 
 import org.opensilex.front.vueOwlExtension.VueOwlExtension;
-import java.net.URI;
 import org.opensilex.sparql.annotations.SPARQLProperty;
 import org.opensilex.sparql.annotations.SPARQLResource;
 import org.opensilex.sparql.model.SPARQLResourceModel;
-import org.opensilex.sparql.utils.ClassURIGenerator;
+import org.opensilex.uri.generation.ClassURIGenerator;
+
+import java.net.URI;
+
+import static org.opensilex.sparql.ontology.dal.OntologyDAO.CUSTOM_TYPES_AND_PROPERTIES_GRAPH;
 
 /**
  *
@@ -19,8 +22,7 @@ import org.opensilex.sparql.utils.ClassURIGenerator;
 @SPARQLResource(
         ontology = VueOwlExtension.class,
         resource = "ClassPropertyExtension",
-        graph = "opensilex-owl-extension",
-        prefix = "oowl-ext"
+        graph = CUSTOM_TYPES_AND_PROPERTIES_GRAPH
 )
 public class VueClassPropertyExtensionModel extends SPARQLResourceModel implements ClassURIGenerator<VueClassPropertyExtensionModel> {
 
@@ -70,7 +72,7 @@ public class VueClassPropertyExtensionModel extends SPARQLResourceModel implemen
     }
 
     @Override
-    public String[] getUriSegments(VueClassPropertyExtensionModel instance) {
+    public String[] getInstancePathSegments(VueClassPropertyExtensionModel instance) {
         return new String[] {
             instance.getFromOwlClass().toString(),
             instance.getToOwlProperty().toString(),

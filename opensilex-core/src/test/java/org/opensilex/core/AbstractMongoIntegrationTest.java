@@ -13,6 +13,7 @@ import com.mongodb.client.MongoDatabase;
 import de.flapdoodle.embed.mongo.MongodExecutable;
 import de.flapdoodle.embed.mongo.MongodProcess;
 import de.flapdoodle.embed.mongo.MongodStarter;
+import de.flapdoodle.embed.mongo.config.Defaults;
 import de.flapdoodle.embed.mongo.config.MongoCmdOptions;
 import de.flapdoodle.embed.mongo.config.MongodConfig;
 import de.flapdoodle.embed.mongo.config.Net;
@@ -23,14 +24,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import static org.awaitility.Awaitility.await;
+
+import de.flapdoodle.embed.mongo.packageresolver.Command;
+import de.flapdoodle.embed.process.config.RuntimeConfig;
+import de.flapdoodle.embed.process.config.process.ProcessOutput;
 import org.bson.Document;
-import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.AfterClass;
-import org.opensilex.core.event.dal.move.MoveEventDAO;
 import org.opensilex.integration.test.security.AbstractSecurityIntegrationTest;
 import org.opensilex.nosql.mongodb.MongoDBService;
 
@@ -44,26 +45,35 @@ public class AbstractMongoIntegrationTest extends AbstractSecurityIntegrationTes
     private static MongodProcess mongod;
     private static int replicaCount = 0;
 
+    public static final int MONGO_PORT = 28018;
+    public static final String MONGO_DATABASE = "admin";
+    public static final String MONGO_HOST = "localhost";
+
     @BeforeClass
     public static void initMongo() throws IOException {
-        MongodStarter runtime = MongodStarter.getDefaultInstance();
-        int nodePort = 28018;
+
+        RuntimeConfig runtimeConfig = Defaults.runtimeConfigFor(Command.MongoD)
+                .processOutput(ProcessOutput.silent())
+                .build();
+
+        MongodStarter runtime = MongodStarter.getInstance(runtimeConfig);
+        int nodePort = MONGO_PORT;
         Map<String, String> args = new HashMap<>();
         String replicaName = "rs0";
         args.put("--replSet", replicaName);
-        mongoExec = runtime.prepare(MongodConfig.builder().version(Version.V4_0_12)
+        mongoExec = runtime.prepare(MongodConfig.builder().version(Version.V5_0_5)
                 .args(args)
                 .cmdOptions(MongoCmdOptions.builder().useNoJournal(false).build())
                 .net(new Net("127.0.0.1", nodePort, false)).build());
         mongod = mongoExec.start();
 
         try (MongoClient mongo = MongoClients.create("mongodb://127.0.0.1:" + nodePort)) {
-            MongoDatabase adminDatabase = mongo.getDatabase("admin");
+            MongoDatabase adminDatabase = mongo.getDatabase(MONGO_DATABASE);
 
             Document config = new Document("_id", replicaName);
             BasicDBList members = new BasicDBList();
             members.add(new Document("_id", 0)
-                    .append("host", "localhost:" + nodePort));
+                    .append("host", MONGO_HOST+":" + nodePort));
             config.put("members", members);
 
             adminDatabase.runCommand(new Document("replSetInitiate", config));
@@ -115,7 +125,7 @@ public class AbstractMongoIntegrationTest extends AbstractSecurityIntegrationTes
 
     private void clearCollections(){
 
-        MongoDBService mongoDBService = getOpensilex().getServiceInstance("mongodb", MongoDBService.class);
+        MongoDBService mongoDBService = getOpensilex().getServiceInstance(MongoDBService.DEFAULT_SERVICE, MongoDBService.class);
         MongoDatabase mongoDb = mongoDBService.getDatabase();
 
         try{
@@ -127,6 +137,10 @@ public class AbstractMongoIntegrationTest extends AbstractSecurityIntegrationTes
             e.printStackTrace();
         }
 
+    }
+
+    protected MongoDBService getMongoDBService(){
+        return getOpensilex().getServiceInstance(MongoDBService.DEFAULT_SERVICE, MongoDBService.class);
     }
 
 

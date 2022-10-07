@@ -1,12 +1,21 @@
 <template>
   <div class="container-fluid">
-    <opensilex-PageHeader v-if="isTypeTab()" :icon="icon" :title="typeTitle"></opensilex-PageHeader>
-    <opensilex-PageHeader v-else :icon="icon" :title="propertiesTitle"></opensilex-PageHeader>
+    <opensilex-PageHeader v-if="isPropertiesType()" :icon="icon" :title="propertiesTitle" :description="propertiesDescription" class="detail-element-header"></opensilex-PageHeader>
 
-    <opensilex-PageActions :returnButton="false" >
+    <opensilex-PageActions :returnButton="false" :tabs="true" >
       <template v-slot>
-        <b-nav-item :active="isTypeTab()" :to="{path: typeURI}">{{ $t("OntologyTypesView.typeTitle") }}</b-nav-item>
-        <b-nav-item  v-if="withProperties" :active="isPropertiesType()" :to="{path: propertiesURI}">{{ $t("OntologyTypesView.propertiesTitle") }}</b-nav-item>
+        <b-nav-item
+          :active="isTypeTab()"
+          :to="{path: typeURI}"
+          >{{ $t("OntologyTypesView.typeTitle") }}
+        </b-nav-item>
+
+        <b-nav-item 
+          v-if="withProperties"
+          :active="isPropertiesType()"
+          :to="{path: propertiesURI}"
+          >{{ $t("OntologyTypesView.propertiesTitle") }}
+        </b-nav-item>
       </template>
     </opensilex-PageActions>
 
@@ -30,7 +39,7 @@
 </template>
 
 <script lang="ts">
-import { Component, Prop, Ref } from "vue-property-decorator";
+import {Component, Prop} from "vue-property-decorator";
 import Vue from "vue";
 
 @Component
@@ -48,10 +57,16 @@ export default class OntologyTypesView extends Vue {
   typeTitle;
 
   @Prop()
+  typeDescription;
+
+  @Prop()
   typeURI;
 
   @Prop()
   propertiesTitle;
+
+  @Prop()
+  propertiesDescription
 
   @Prop()
   propertiesURI;
@@ -75,6 +90,7 @@ export default class OntologyTypesView extends Vue {
   color: #007bff; 
 }
 </style>
+
 
 <i18n>
 en:

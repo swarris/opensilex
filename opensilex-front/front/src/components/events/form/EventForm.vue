@@ -24,7 +24,7 @@
                     :required="false"
                     :disabled="editMode"
                     placeholder="Event.type-placeholder"
-                    @update:type="typeSwitch"
+                    @select="typeSwitch($event.id,false)"
                 ></opensilex-TypeForm>
             </div>
         </div>
@@ -33,7 +33,7 @@
             <div class="col">
                 <opensilex-TagInputForm
                     :value.sync="form.targets"
-                    :baseType="$opensilex.Oeev.CONCERNS"
+                    :baseType="this.$opensilex.Oeev.CONCERNS"
                     label="Event.targets"
                     type="text"
                     :required="true"
@@ -41,6 +41,19 @@
                 ></opensilex-TagInputForm>
             </div>
         </div>
+
+      <div class="row">
+        <div class="col">
+          <!-- Comment -->
+          <opensilex-TextAreaForm
+              :value.sync="form.description"
+              label="component.common.description"
+              helpMessage="Event.description"
+              placeholder="Event.description"
+          >
+          </opensilex-TextAreaForm>
+        </div>
+      </div>
 
         <div class="row">
             <div class="col">
@@ -83,31 +96,17 @@
         </div>
 
         <br>
-
-        <div class="row">
-            <div class="col">
-                <!-- Comment -->
-                <opensilex-TextAreaForm
-                    :value.sync="form.description"
-                    label="component.common.description"
-                >
-                </opensilex-TextAreaForm>
-            </div>
-        </div>
-
         <slot v-bind:form="form"></slot>
 
-        <div v-for="(relation, index) in typeRelations" v-bind:key="index">
-            <component
-                :is="getInputComponent(relation.property)"
-                :property="relation.property"
-                :label="relation.property.name"
-                :required="relation.property.is_required"
-                :multiple="relation.property.is_list"
-                :value.sync="relation.value"
-                @update:value="updateRelation($event,relation.property)"
-            ></component>
-        </div>
+        <opensilex-OntologyRelationsForm
+            ref="ontologyRelationsForm"
+            :rdfType="this.form.rdf_type"
+            :relations="this.form.relations"
+            :excludedProperties="this.excludedProperties"
+            :baseType="this.baseType"
+            :editMode="editMode"
+            :context="context ? { experimentURI: context} : undefined"
+        ></opensilex-OntologyRelationsForm>
 
         <div>
             <opensilex-MoveForm v-if="isMove()" :form.sync="form"></opensilex-MoveForm>
@@ -119,18 +118,19 @@
 <script lang="ts">
 import {Component, Prop, Ref} from "vue-property-decorator";
 import Vue from "vue";
-import {EventCreationDTO} from "opensilex-core/model/eventCreationDTO";
 import {OntologyService} from "opensilex-core/api/ontology.service";
 import MoveForm from "./MoveForm.vue";
-import {MoveCreationDTO} from "opensilex-core/model/moveCreationDTO";
-import {VueJsOntologyExtensionService, VueRDFTypeDTO} from "../../../lib";
+import {VueJsOntologyExtensionService} from "../../../lib";
+import OpenSilexVuePlugin from 'src/models/OpenSilexVuePlugin';
+import OntologyRelationsForm from "../../ontology/OntologyRelationsForm.vue";
+import {EventCreationDTO, MoveCreationDTO } from 'opensilex-core/index';
 
 @Component
 export default class EventForm extends Vue {
 
     @Ref("validatorRef") readonly validatorRef!: any;
 
-    $opensilex: any;
+    $opensilex: OpenSilexVuePlugin;
     ontologyService: OntologyService;
     vueOntologyService: VueJsOntologyExtensionService;
     uriGenerated = true;
@@ -143,8 +143,13 @@ export default class EventForm extends Vue {
     @Prop({default: () => MoveForm.getEmptyForm()})
     form: MoveCreationDTO;
 
+    @Ref("ontologyRelationsForm") readonly ontologyRelationsForm!: OntologyRelationsForm;
+
+    excludedProperties: Set<string>;
+
+    context: string = "";
+
     baseType: string = "";
-    typeModel = null;
     propertyComponents = [];
 
     startRequired = false;
@@ -160,6 +165,18 @@ export default class EventForm extends Vue {
         this.ontologyService = this.$opensilex.getService("opensilex.OntologyService");
         this.vueOntologyService = this.$opensilex.getService("opensilex.VueJsOntologyExtensionService");
         this.baseType = this.$opensilex.Oeev.EVENT_TYPE_URI;
+
+        this.excludedProperties = new Set<string>([
+            this.$opensilex.Oeev.CONCERNS,
+            this.$opensilex.Oeev.IS_INSTANT,
+            this.$opensilex.Time.HAS_BEGINNING,
+            this.$opensilex.Time.HAS_END,
+            this.$opensilex.Rdfs.COMMENT,
+
+            // from/to properties to handle into MoveForm
+            this.$opensilex.Oeev.FROM,
+            this.$opensilex.Oeev.TO
+        ]);
     }
 
     static getEmptyForm(): EventCreationDTO {
@@ -179,8 +196,8 @@ export default class EventForm extends Vue {
         return MoveForm.getEmptyForm();
     }
 
-    setBaseType(baseType) {
-        this.baseType = baseType;
+    setContext(context) {
+        this.context = context;
     }
 
     updateRequiredProps() {
@@ -218,115 +235,16 @@ export default class EventForm extends Vue {
         this.initHandler = handler;
     }
 
-
-    getInputComponent(property) {
-        if (property.input_components_by_property && property.input_components_by_property[property.property]) {
-            return property.input_components_by_property[property.property];
-        }
-        return property.input_component;
+    typeSwitch(type: string, initialLoad: boolean) {
+        this.ontologyRelationsForm.typeSwitch(type, initialLoad);
     }
-
-    resetTypeModel(){
-        this.typeModel = undefined;
-    }
-
-
-    get typeRelations() {
-
-        let internalTypeProperties = [];
-
-        if (this.typeModel) {
-            for (let i in this.typeModel.data_properties) {
-                let dataProperty = this.typeModel.data_properties[i];
-                if (dataProperty.property != "rdfs:label") {
-
-                    let relation = this.form.relations.find(relation => relation.property == dataProperty.property);
-
-                    internalTypeProperties.push({
-                        property: dataProperty,
-                        value: relation.value
-                    });
-                }
-            }
-
-            for (let i in this.typeModel.object_properties) {
-
-                let objectProperty = this.typeModel.object_properties[i];
-                let relation = this.form.relations.find(relation => relation.property == objectProperty.property);
-
-                internalTypeProperties.push({
-                    property: objectProperty,
-                    value: relation.value
-                });
-            }
-        }
-        return internalTypeProperties;
-    }
-
-    typeSwitch(type) {
-
-        if (!type) {
-            return;
-        }
-
-        return this.vueOntologyService
-            .getRDFTypeProperties(this.form.rdf_type, this.baseType)
-            .then(http => {
-                this.typeModel = http.response.result;
-                if (!this.editMode) {
-                    let relations = [];
-                    for (let i in this.typeModel.data_properties) {
-                        let dataProperty = this.typeModel.data_properties[i];
-                        if (dataProperty.is_list) {
-                            relations.push({
-                                value: [],
-                                property: dataProperty.property
-                            });
-                        } else {
-                            relations.push({
-                                value: undefined,
-                                property: dataProperty.property
-                            });
-                        }
-                    }
-
-                    for (let i in this.typeModel.object_properties) {
-                        let objectProperty = this.typeModel.object_properties[i];
-                        if (objectProperty.is_list) {
-                            relations.push({
-                                value: [],
-                                property: objectProperty.property
-                            });
-                        } else {
-                            relations.push({
-                                value: undefined,
-                                property: objectProperty.property
-                            });
-                        }
-                    }
-
-                    this.form.relations = relations;
-                }
-            });
-
-    }
-
-    updateRelation(newValue,property){
-
-        let relation = this.form.relations.find(relation =>
-            relation.property == property.property
-        );
-
-        relation.value = newValue;
-    }
-
 
     isMove(): boolean {
-        if (!this.form) {
+        if (!this.form || ! this.form.rdf_type) {
             return false;
         }
-        return this.form.rdf_type == this.$opensilex.Oeev.MOVE_TYPE_URI
-            || this.form.rdf_type == this.$opensilex.Oeev.MOVE_TYPE_PREFIXED_URI
+
+        return this.$opensilex.Oeev.checkURIs(this.form.rdf_type, this.$opensilex.Oeev.MOVE_TYPE_URI);
     }
 
 }

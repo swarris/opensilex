@@ -90,6 +90,13 @@ public final class OpenSilex {
     public final static String DEV_PROFILE_ID = "dev";
 
     /**
+     * Special profile used when we need to run an OpenSILEX instance (Swagger/maven build, custom OpenSILEX command)
+     * without running the whole OpenSIELX server
+     */
+    public final static String INTERNAL_OPERATIONS_PROFILE_ID = "internal_operations";
+
+
+    /**
      * Environment key for OpenSilex base directory.
      */
     public final static String BASE_DIR_ENV_KEY = "OPENSILEX_BASE_DIRECTORY";
@@ -508,8 +515,6 @@ public final class OpenSilex {
         };
         Runtime.getRuntime().addShutdownHook(shutdownHook);
 
-        LOGGER.debug("Current expanded configuration:" + getExpandedYAMLConfig());
-
         LOGGER.debug("Initialize modules");
         for (OpenSilexModule module : getModules()) {
             module.setOpenSilex(this);
@@ -701,6 +706,15 @@ public final class OpenSilex {
      */
     public boolean isDebug() {
         return setup.isDebug();
+    }
+
+    /**
+     * Determine if maven build profile is build.
+     *
+     * @return true if maven profile is build and false otherwise
+     */
+    public boolean isReservedProfile(){
+        return getProfileId().equals(INTERNAL_OPERATIONS_PROFILE_ID);
     }
 
     /**

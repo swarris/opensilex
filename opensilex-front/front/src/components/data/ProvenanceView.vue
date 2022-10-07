@@ -1,19 +1,14 @@
 <template>
   <div class="container-fluid">
-    <opensilex-PageHeader
-      icon="ik#ik-bar-chart-line"
-      title="component.menu.data.provenance"
-      description="ProvenanceView.description"
-    ></opensilex-PageHeader>
-
-    <opensilex-PageActions>
-      <template v-slot>
         <opensilex-CreateButton
+          v-if="
+            user.hasCredential(
+              credentials.CREDENTIAL_PROVENANCE_MODIFICATION_ID)"
           @click="createProvenance()"
           label="ProvenanceView.add"
-        ></opensilex-CreateButton>
-      </template>
-    </opensilex-PageActions>
+          class="createButton"
+        >
+        </opensilex-CreateButton>
 
     <opensilex-ModalForm
       ref="provenanceForm"
@@ -25,6 +20,7 @@
       @onCreate="provList.refresh()"
       @onUpdate="provList.refresh()"
       :successMessage="successMessage"
+      :key="lang"
     ></opensilex-ModalForm>
 
     <opensilex-PageContent>
@@ -63,6 +59,10 @@ export default class ProvenanceView extends Vue {
 
   get credentials() {
     return this.$store.state.credentials;
+  }
+
+  get lang() {
+    return this.$store.getters.language;
   }
 
   @Ref("provList") readonly provList!: any;
@@ -131,7 +131,8 @@ export default class ProvenanceView extends Vue {
   }
 
   deleteProvenance(uri: string) {
-    console.debug("deleteProvenance " + uri);
+    console.log("deleteProvenance " + uri);
+
     this.service
       .deleteProvenance(uri)
       .then(() => {
@@ -144,7 +145,13 @@ export default class ProvenanceView extends Vue {
           this.$i18n.t("component.common.success.delete-success-message");
         this.$opensilex.showSuccessToast(message);
       })
-      .catch(this.$opensilex.errorHandler);
+      .catch((error) => {
+        if (error.response.result.message) {
+          this.$opensilex.errorHandler(error, error.response.result.message);
+        } else {
+          this.$opensilex.errorHandler(error);
+        }
+      });
   }
 
   successMessage(form) {
@@ -156,6 +163,10 @@ export default class ProvenanceView extends Vue {
 
 
 <style scoped lang="scss">
+.createButton{
+  margin-bottom: 10px;
+  margin-top: -15px
+}
 </style>
 
 <i18n>
@@ -175,6 +186,7 @@ en:
     activity_type-placeholder: Select a type of activity
     agent_type-placeholder: Select a type of agent
     success-message: Provenance
+    associated-data-error: Provenance already associated with data
 
 fr:
   ProvenanceView:
@@ -191,5 +203,6 @@ fr:
     activity_type-placeholder: Selectionner un type d'activité
     agent_type-placeholder: Selectionner un type d'agent
     success-message: La provenance
+    associated-data-error: Provenance déjà associée à des données
   
 </i18n>

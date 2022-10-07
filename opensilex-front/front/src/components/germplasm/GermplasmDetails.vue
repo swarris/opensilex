@@ -4,6 +4,7 @@
       icon="fa#seedling"
       :title="germplasm.name"
       description="GermplasmDetails.title"
+      class="detail-element-header"
     ></opensilex-PageHeader>
 
     <opensilex-PageActions :tabs=true :returnButton="true">
@@ -33,11 +34,11 @@
           <opensilex-Card label="component.common.description" icon="ik#ik-clipboard">
             <template v-slot:rightHeader>              
                 <opensilex-EditButton
-                  v-if="!germplasm.rdf_type.endsWith('Species') && user.hasCredential(credentials.CREDENTIAL_GERMPLASM_DELETE_ID)"
+                  v-if="user.hasCredential(credentials.CREDENTIAL_GERMPLASM_MODIFICATION_ID)"
                   @click="updateGermplasm"
                 ></opensilex-EditButton>
                 <opensilex-DeleteButton
-                  v-if="user.hasCredential(credentials.CREDENTIAL_GERMPLASM_DELETE_ID)"
+                  v-if="!germplasm.rdf_type.endsWith('Species') && user.hasCredential(credentials.CREDENTIAL_GERMPLASM_DELETE_ID)"
                   @click="deleteGermplasm"
                 ></opensilex-DeleteButton>
             </template>
@@ -47,7 +48,7 @@
                 :uri="germplasm.uri"
                 :url="germplasm.uri"
               ></opensilex-UriView>
-              <opensilex-StringView class="test" v-else label="GermplasmDetails.uri" :value="germplasm.uri"></opensilex-StringView>
+              <opensilex-UriView v-else :uri="germplasm.uri" ></opensilex-UriView>
               <opensilex-StringView label="GermplasmDetails.rdfType" :value="germplasm.rdf_type_name"></opensilex-StringView>
               <opensilex-StringView label="GermplasmDetails.name" :value="germplasm.name"></opensilex-StringView>
               <opensilex-StringView
@@ -138,7 +139,7 @@
         v-else-if="isDocumentTab()"
         ref="documentTabList"
         :uri="uri"        
-        :modificationCredentialId="credentials.CREDENTIAL_GERMPLASM_MODIFICATION_ID"
+        :modificationCredentialId="credentials.CREDENTIAL_DOCUMENT_MODIFICATION_ID"
       ></opensilex-DocumentTabList>
 
       <opensilex-AnnotationList
@@ -147,8 +148,8 @@
       :target="uri"
       :displayTargetColumn="false"
       :enableActions="true"
-      :modificationCredentialId="credentials.CREDENTIAL_GERMPLASM_MODIFICATION_ID"
-      :deleteCredentialId="credentials.CREDENTIAL_GERMPLASM_DELETE_ID"
+      :modificationCredentialId="credentials.CREDENTIAL_ANNOTATION_MODIFICATION_ID"
+      :deleteCredentialId="credentials.CREDENTIAL_ANNOTATION_DELETE_ID"
       ></opensilex-AnnotationList>
 
     </opensilex-PageContent>
@@ -174,6 +175,7 @@ import { GermplasmGetSingleDTO, GermplasmUpdateDTO, GermplasmService } from "ope
 import HttpResponse, { OpenSilexResponse } from "../../lib/HttpResponse";
 import AnnotationList from "../annotations/list/AnnotationList.vue";
 import DocumentTabList from "../documents/DocumentTabList.vue";
+import GermplasmForm from "./GermplasmForm.vue";
 
 
 @Component
@@ -318,7 +320,10 @@ export default class GermplasmDetails extends Vue {
 
   @Ref("germplasmForm") readonly germplasmForm!: any;
   updateGermplasm() {
-    this.germplasmForm.getFormRef().getAttributes(this.germplasm);
+
+    let form: GermplasmForm = this.germplasmForm.getFormRef();
+    form.readAttributes(this.germplasm.metadata);
+
     let updateDTO: GermplasmUpdateDTO = {
       uri: this.germplasm.uri,
       name: this.germplasm.name,

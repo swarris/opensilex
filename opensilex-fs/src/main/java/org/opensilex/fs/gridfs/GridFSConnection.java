@@ -11,6 +11,14 @@ import java.net.URI;
 import java.nio.file.Path;
 import org.opensilex.fs.service.FileStorageConnection;
 import org.opensilex.service.BaseService;
+import org.opensilex.service.ServiceDefaultDefinition;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  *
@@ -51,10 +59,6 @@ public class GridFSConnection extends BaseService implements FileStorageConnecti
     public boolean exist(Path filePath) throws IOException {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
-    @Override
-    public boolean exist(URI uri) throws IOException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-    }
 
     @Override
     public void delete(Path filePath) throws IOException {
@@ -65,8 +69,5 @@ public class GridFSConnection extends BaseService implements FileStorageConnecti
     public Path getAbsolutePath(Path filePath) throws IOException {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
-    
-    public Path getAbsolutePath(URI uri) throws IOException{
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-    }
+
 }

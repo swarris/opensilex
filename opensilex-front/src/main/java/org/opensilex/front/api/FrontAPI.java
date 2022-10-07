@@ -40,6 +40,7 @@ import org.opensilex.front.theme.ThemeConfig;
 import org.opensilex.security.authentication.ApiTranslatable;
 import org.opensilex.security.authentication.injection.CurrentUser;
 import org.opensilex.security.user.dal.UserModel;
+import org.opensilex.sparql.service.SPARQLService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.opensilex.server.exceptions.NotFoundException;
@@ -60,6 +61,9 @@ public class FrontAPI {
     @Inject
     private FrontModule frontModule;
 
+    @Inject
+    private SPARQLService sparql;
+
     @CurrentUser
     UserModel user;
         
@@ -73,9 +77,23 @@ public class FrontAPI {
     @Produces(MediaType.APPLICATION_JSON)
     public Response getConfig() throws Exception {
 
-        FrontConfigDTO config = frontModule.getConfigDTO(user.getLanguage());
+        FrontConfigDTO config = frontModule.getConfigDTO(user, sparql);
 
         return new SingleObjectResponse<FrontConfigDTO>(config).getResponse();
+    }
+
+    @GET
+    @Path("/user_config")
+    @ApiOperation(value = "Return the user-specific configuration")
+    @ApiTranslatable
+    @ApiResponses(value = {
+        @ApiResponse(code = 200, message = "Front application configuration", response = UserFrontConfigDTO.class)
+    })
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getUserConfig() throws Exception {
+        UserFrontConfigDTO config = frontModule.getUserConfigDTO(user);
+
+        return new SingleObjectResponse<>(config).getResponse();
     }
 
     @GET

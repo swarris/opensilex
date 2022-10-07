@@ -1,3 +1,16 @@
+#########
+## STAGES
+#########
+
+# Default Gitlab stages are : build, test, deploy
+# The custom stage `check` is added for merge requests (see job merge-request:check)
+stages:
+  - check
+  - build
+  - test
+  - deploy
+  - release
+
 ########################
 ##GLOBAL VARIABLES
 ########################
@@ -17,6 +30,7 @@ variables:
   MAVEN_CLI_OPTS: "--batch-mode --show-version -c"
   MAVEN_CACHE_FOLDER: "$CI_PROJECT_DIR/.m2/repository"
   MAVEN_OPTS: "-Dhttps.protocols=TLSv1.2 -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN -Dorg.slf4j.simpleLogger.showDateTime=true -Djava.awt.headless=true"
+  MAVEN_SKIP_TESTS: "false"
   # DEFAULT SERVER MAVEN VERSION
   MVN_VERSION: 3.6.3
   # DEFAULT SERVER JAVA VERSION
@@ -30,7 +44,7 @@ variables:
   RSYNC_INSTANCES_LOGS_ARCHIVED: "~/opensilex-instances/logs/old"
   ###### OPENSILEX ######
   #APP BUILD CONFIG
-  OPENSILEX_APP_REVISION: "INSTANCE-SNAPSHOT"
+  #OPENSILEX_APP_REVISION: "1.0.0.rc1-SNAPSHOT"
   OPENSILEX_BUILD_PATH: "opensilex-release/target"
   #APP DEPLOY CONFIG
   DEV_TOOLS_REPO_CONF_FILES_PATH: "instances-configuration"
@@ -78,12 +92,14 @@ variables:
   stage: build
   image: maven:$MVN_VERSION-jdk-$JAVA_VERSION
   script:
-    - mvn clean install $MAVEN_CLI_OPTS -Drevision=$OPENSILEX_APP_REVISION
+    - mvn clean install $MAVEN_CLI_OPTS -Drevision=$OPENSILEX_APP_REVISION -DskipTests=$MAVEN_SKIP_TESTS
     - ls $OPENSILEX_BUILD_PATH/opensilex-release-$OPENSILEX_APP_REVISION
-    - mv $OPENSILEX_BUILD_PATH/opensilex-release-$OPENSILEX_APP_REVISION $OPENSILEX_APP_REVISION
+    - if [ -d "artifacts" ]; then rm -r artifacts; fi
+    - mkdir artifacts
+    - mv $OPENSILEX_BUILD_PATH/opensilex-release-$OPENSILEX_APP_REVISION artifacts/$OPENSILEX_APP_REVISION
   artifacts:
     paths:
-      - $OPENSILEX_APP_REVISION
+      - artifacts
     expire_in: "3 week"
 
 ########################
@@ -127,9 +143,9 @@ variables:
     - echo "$REMOTE_SERVER_SSH_KEY" >> ${HOME}/.ssh/id_rsa
     - chmod 600 ${HOME}/.ssh/id_rsa
 
-########################
+##################################
 ##  DEPLOY OPENSILEX TEST TEMPLATE
-########################
+##################################
 
 .deploy:opensilex:instance: &deploy_opensilex_template
   stage: deploy
@@ -140,14 +156,14 @@ variables:
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@forgemia.inra.fr/OpenSILEX/opensilex-dev-tools.git --branch master $CI_PROJECT_DIR/opensilex-dev-tools
     - ls $CI_PROJECT_DIR/opensilex-dev-tools
     # Directory details
-    - ls $CI_PROJECT_DIR/$OPENSILEX_APP_REVISION
+    - ls $CI_PROJECT_DIR/artifacts/$OPENSILEX_APP_REVISION
     - echo "Create directory ${RSYNC_INSTANCES_BIN_PATH}/${REMOTE_SERVER_RSYNC_DIR}"
     - echo "Create directory ${RSYNC_INSTANCES_DATA_PATH}/${REMOTE_SERVER_RSYNC_DIR}"
     - echo "Create directory ${RSYNC_INSTANCES_LOGS_PATH}"
     - echo "Create directory ${RSYNC_INSTANCES_LOGS_ARCHIVED}"
     - ssh -i ${HOME}/.ssh/id_rsa -p22 $REMOTE_SERVER_RSYNC_ACCOUNT@$REMOTE_SERVER_IP "mkdir -p $RSYNC_INSTANCES_BIN_PATH/$REMOTE_SERVER_RSYNC_DIR; mkdir -p $RSYNC_INSTANCES_LOGS_PATH; mkdir -p $RSYNC_INSTANCES_LOGS_ARCHIVED; mkdir -p $RSYNC_INSTANCES_DATA_PATH/$REMOTE_SERVER_RSYNC_DIR;"
     - echo "Upload files"
-    - rsync -arzv -e "ssh  -i ${HOME}/.ssh/id_rsa" $RSYNC_INSTANCES_OPTIONS  $CI_PROJECT_DIR/$OPENSILEX_APP_REVISION/* $REMOTE_SERVER_RSYNC_ACCOUNT@$REMOTE_SERVER_IP:$RSYNC_INSTANCES_BIN_PATH/$REMOTE_SERVER_RSYNC_DIR
+    - rsync -arzv -e "ssh -i ${HOME}/.ssh/id_rsa" $RSYNC_INSTANCES_OPTIONS $CI_PROJECT_DIR/artifacts/$OPENSILEX_APP_REVISION/* $REMOTE_SERVER_RSYNC_ACCOUNT@$REMOTE_SERVER_IP:$RSYNC_INSTANCES_BIN_PATH/$REMOTE_SERVER_RSYNC_DIR
     - ls $CI_PROJECT_DIR/opensilex-dev-tools/$CONFIGS_FILES_DIR_PATH
     - echo "scp -i ${HOME}/.ssh/id_rsa -o 'StrictHostKeyChecking no' $CI_PROJECT_DIR/opensilex-dev-tools/$CONFIGS_FILES_DIR_PATH/* ${REMOTE_SERVER_RSYNC_ACCOUNT}@${REMOTE_SERVER_IP}:${RSYNC_INSTANCES_BIN_PATH}/${REMOTE_SERVER_RSYNC_DIR}"
     - scp -i ${HOME}/.ssh/id_rsa -o "StrictHostKeyChecking no" $CI_PROJECT_DIR/opensilex-dev-tools/$CONFIGS_FILES_DIR_PATH/* $REMOTE_SERVER_RSYNC_ACCOUNT@$REMOTE_SERVER_IP:$RSYNC_INSTANCES_BIN_PATH/$REMOTE_SERVER_RSYNC_DIR
@@ -176,37 +192,255 @@ variables:
     reports:
       dotenv: deploy.env
 
-# ########################
-# ##  DEFAULT BUILD
-# ########################
+##################
+### DEFAULT BUILDS
+##################
 
-opensilex:build:
+opensilex-master:build:
   <<: *build_template_with_opensilex
   rules:
-    - if: $CI_MERGE_REQUEST_ID
     - if: $CI_COMMIT_BRANCH == "master"
+
+opensilex-develop:build:
+  <<: *build_template_with_opensilex
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+opensilex-release:build:
+  <<: *build_template_with_opensilex
+  rules:
+    - if: $CI_COMMIT_BRANCH == "release"
+
+##################################
+### MERGE REQUESTS CHECK AND BUILD
+##################################
+
+# Checks that the merge request is valid (target branch must not be master, except if the
+# source is a hotfix branch)
+# The merge request is considered from a hotfix branch if at least one of these conditions is valid :
+# - The branch name starts with "hotfix/"
+# - The merge request has the label "hotfix"
+# Merge requests marked with the Draft: keyword are also blocked
+# No pipeline is triggered for MR from the release branch, because the last release pipeline can be used instead.
+merge-request:check:
+  stage: check
+  script:
+    - if [[ $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master" &&
+      ! $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME =~ ^hotfix\/.* &&
+      ! $CI_MERGE_REQUEST_LABELS =~ ^(.+,)*hotfix(,.+)*$ ]]; then
+    -   echo "Merging from $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME to master is forbidden"
+    -   echo "Only a hotfix can be merged into master"
+    -   echo "To mark this merge request as a hotfix, please add the 'hotfix' label, or rename the branch as hotfix/$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"
+    -   exit 1
+    - fi
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event' && $CI_MERGE_REQUEST_TITLE !~ /^(Draft:|\[Draft\]|\(Draft\)).*/i && $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME != "release"
+
+# Builds the merge request
+merge-request:build:
+  <<: *build_template_with_opensilex
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event' && $CI_MERGE_REQUEST_TITLE !~ /^(Draft:|\[Draft\]|\(Draft\)).*/i && $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME != "release"
+  needs:
+    - job: "merge-request:check"
+  tags:
+    - stable
+
+
+####################
+### TEST DEPLOYMENTS
+####################
+
+# Trigger pipeline for deployment of the master branch
+trigger:opensilex-master:deploy:test:
+  stage: deploy
+  image: curlimages/curl
+  script:
+    - curl --request POST --form "variables[DEPLOY]=opensilex-master" --form "token=$CI_JOB_TOKEN" --form "ref=master" --form "variables[COMMIT_SHA_OPENSILEX_DEV]=$CI_COMMIT_SHA" --form "variables[OPENSILEX_APP_REVISION]=$OPENSILEX_APP_REVISION" https://forgemia.inra.fr/api/v4/projects/403/trigger/pipeline
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+  needs:
+    - job: "opensilex-master:build"
 
 # Trigger pipeline for sixtine module deployment
 trigger:sixtine:build:
   stage: deploy
   image: curlimages/curl
   script:
-    - curl --request POST --form "token=$CI_JOB_TOKEN" --form "ref=master" --form "variables[COMMIT_SHA_OPENSILEX_DEV]=$CI_COMMIT_SHA" https://forgemia.inra.fr/api/v4/projects/1757/trigger/pipeline
+    - curl --request POST --form "token=$CI_JOB_TOKEN" --form "ref=master" --form "variables[OPENSILEX_APP_REVISION]=$OPENSILEX_APP_REVISION" --form "variables[COMMIT_SHA_OPENSILEX_DEV]=$CI_COMMIT_SHA" https://forgemia.inra.fr/api/v4/projects/1757/trigger/pipeline
   rules:
     - if: $CI_COMMIT_BRANCH == "master"
   needs:
-    - job: "opensilex:build"
+    - job: "opensilex-master:build"
 
-# Trigger pipeline for phis module deployment
-trigger:phis:deploy:test:
+# Trigger pipeline for the deployment of the develop branch
+# - If there is no release branch, then develop is deployed
+# - Otherwise, nothing is deployed
+trigger:opensilex-develop:deploy:test:
   stage: deploy
-  image: curlimages/curl
+  image: alpine
   script:
-    - curl --request POST --form "variables[DEPLOY]=phis-test" --form "token=$CI_JOB_TOKEN" --form "ref=master" --form "variables[COMMIT_SHA_OPENSILEX_DEV]=$CI_COMMIT_SHA"  https://forgemia.inra.fr/api/v4/projects/403/trigger/pipeline
+    - apk update
+    - apk add git
+    - apk add curl
+    - if ! git ls-remote --exit-code --heads origin release; then
+    -   echo 'Deploying develop'
+    -   curl --request POST --form "variables[DEPLOY]=opensilex-develop" --form "token=$CI_JOB_TOKEN" --form "ref=master" --form "variables[COMMIT_SHA_OPENSILEX_DEV]=$CI_COMMIT_SHA" --form "variables[OPENSILEX_APP_REVISION]=$OPENSILEX_APP_REVISION" https://forgemia.inra.fr/api/v4/projects/403/trigger/pipeline
+    - else
+    -   echo 'Branch release exists, cannot deploy develop'
+    - fi
   rules:
-    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "develop"
   needs:
-    - job: "opensilex:build"
+    - job: "opensilex-develop:build"
+
+# Trigger pipeline for the deployment of the release branch
+trigger:opensilex-release:deploy:test:
+  stage: deploy
+  image: alpine
+  script:
+    - apk update
+    - apk add curl
+    - echo 'Deploying release'
+    - curl --request POST --form "variables[DEPLOY]=opensilex-release" --form "token=$CI_JOB_TOKEN" --form "ref=master" --form "variables[COMMIT_SHA_OPENSILEX_DEV]=$CI_COMMIT_SHA" --form "variables[OPENSILEX_APP_REVISION]=$OPENSILEX_APP_REVISION" https://forgemia.inra.fr/api/v4/projects/403/trigger/pipeline
+  rules:
+    - if: $CI_COMMIT_BRANCH == "release"
+  needs:
+    - job: "opensilex-release:build"
+
+#################
+### CLOSE RELEASE
+#################
+
+opensilex-release:close:
+  stage: release
+  image: alpine
+  script:
+    - if [[ -z $RELEASE_TAG ]]; then
+    -   echo 'RELEASE_TAG must be set'
+    -   exit 1
+    - else
+    -   echo "Closing release $RELEASE_TAG"
+    - fi
+    # Install packages git & curl
+    - apk update
+    - apk add git
+    - apk add curl
+    # Config & variables
+    - RELEASE_COMMIT_MESSAGE="Release $RELEASE_TAG"
+    - RELEASE_INTERMEDIATE_BRANCH="release-$RELEASE_TAG"
+    - git config user.name "OpenSILEX Team"
+    - git config user.email opensilex@gmail.com
+    - git remote set-url origin "https://oauth2:$GITLAB_USER_CI_PAT@forgemia.inra.fr/OpenSILEX/opensilex-dev.git"
+    # Fetch and unshallows the project
+    - git fetch origin --unshallow
+    # Remove local tags
+    - git tag -l | xargs git tag -d
+    - git fetch origin --tags
+    # Remove the local branches if necessary
+    - if git show-ref --quiet refs/heads/release; then
+    -   git branch -D release
+    - fi
+    - if git show-ref --quiet refs/heads/master; then
+    -   git branch -D master
+    - fi
+    - if git show-ref --quiet refs/heads/$RELEASE_INTERMEDIATE_BRANCH; then
+    -   git branch -D $RELEASE_INTERMEDIATE_BRANCH
+    - fi
+    # Create intermediate branch to avoir conflicts
+    - git checkout release
+    - git checkout -b $RELEASE_INTERMEDIATE_BRANCH
+    - git merge origin/master -s ours --no-edit
+    # Merge into master
+    - git checkout master
+    - git merge $RELEASE_INTERMEDIATE_BRANCH --squash
+    - git commit -m "$RELEASE_COMMIT_MESSAGE"
+    - git tag -a -m "$RELEASE_COMMIT_MESSAGE" "$RELEASE_TAG"
+    # Check that there is no diff between master and release now
+    - if ! git diff master release --exit-code; then
+    -   echo "Something went wrong with the merge; master and release should be the same but have differences"
+    -   exit 1
+    - fi
+    # Push master and the release tag
+    - git push -f origin master
+    - git push origin $RELEASE_TAG
+    # Trigger the merge request to develop
+    - >
+      curl -X POST -F "private_token=$JOB_API_TOKEN" -F "source_branch=release"
+      -F "target_branch=develop" -F "title=[Release] Merge $RELEASE_TAG into develop"
+      -F "remove_source_branch=true" -F "labels[]=finishing release"
+      https://forgemia.inra.fr/api/v4/projects/1675/merge_requests
+    # Transmit release tag variable to next job (name must be different)
+    - echo "PUBLISH_RELEASE_TAG=$RELEASE_TAG" >> opensilex-release:close.env
+  rules:
+    - if: $CI_COMMIT_BRANCH == "release"
+  artifacts:
+    reports:
+      dotenv:
+        - "opensilex-release:close.env"
+  needs:
+    - job: "opensilex-release:build"
+  when: manual
+
+############################
+## PUBLISH RELEASE TO GITHUB
+############################
+
+opensilex-release:publish:
+  stage: release
+  image: maven:$MVN_VERSION-jdk-$JAVA_VERSION
+  script:
+    - if [[ -z $PUBLISH_RELEASE_TAG ]]; then
+    -   echo 'PUBLISH_RELEASE_TAG must be set'
+    -   exit 1
+    - else
+    -   echo "Publishing release $PUBLISH_RELEASE_TAG"
+    - fi
+    # Install packages curl & jq
+    - apt-get update
+    - apt-get install -y curl
+    - apt-get install -y jq
+    # Remove local tags & fetch them again
+    - git tag -l | xargs git tag -d
+    - git fetch origin --tags
+    # Checkout the release tag & build with the correct revision
+    - git checkout $PUBLISH_RELEASE_TAG
+    - mvn clean install $MAVEN_CLI_OPTS -Drevision=$PUBLISH_RELEASE_TAG -DskipTests=true
+    # Extract release description from changelog
+    # The CHANGELOG.md file should have a section starting with "## [$PUBLISH_RELEASE_TAG]", for example "## [1.0.0-rc+4]"
+    # Otherwise, "Missing release notes" will be set as the release description
+    - echo "Try to extract the release description from changelog..."
+    - RELEASE_DESCRIPTION=$(sed -n  "/^## \[${PUBLISH_RELEASE_TAG}\]/,/^## /p" CHANGELOG.md | head -n -1 | jq -Rsa .)
+    - if [[ "$RELEASE_DESCRIPTION" == '""' ]]; then
+    -   echo "Missing release description for tag $PUBLISH_RELEASE_TAG in the changelog. Please change it later in the Github repository."
+    -   RELEASE_DESCRIPTION="\"# [$PUBLISH_RELEASE_TAG] - $(date --iso-8601)\n\nMissing release notes\n\""
+    - fi
+    # Headers for the queries
+    - AUTHORIZATION="$GITHUB_API_ACCOUNT:$GITHUB_API_TOKEN"
+    - 'ACCEPTS_HEADER="Accept: application/vnd.github+json"'
+    # JSON payload for the creation query
+    # NB : the 'RELEASE_DESCRIPTION' variable already contains the quotes (thanks to jq), that's why they're omitted here
+    - 'CREATE_QUERY_PAYLOAD="{\"tag_name\":\"$PUBLISH_RELEASE_TAG\",\"name\":\"$PUBLISH_RELEASE_TAG\",\"body\":$RELEASE_DESCRIPTION}"'
+    # Create the release
+    - 'echo "\"curl -u \"$AUTHORIZATION\" -X POST -H \"$ACCEPTS_HEADER\" -d \"$CREATE_QUERY_PAYLOAD\" https://api.github.com/repos/OpenSILEX/opensilex/releases"'
+    - CREATE_RESPONSE=$(curl -u "$AUTHORIZATION" -X POST -H "$ACCEPTS_HEADER" -d "$CREATE_QUERY_PAYLOAD" https://api.github.com/repos/OpenSILEX/opensilex/releases)
+    - echo $CREATE_RESPONSE
+    # Asset file
+    - FILENAME=opensilex-release-$PUBLISH_RELEASE_TAG.zip
+    - FILEPATH=opensilex-release/target/$FILENAME
+    # Extract the asset upload URL from the response
+    # The URL is formatted like this : https://uploads.github.com/repos/OpenSILEX/opensilex/releases/73752399/assets{?name,label}
+    # So the last part must be replaced with a valid query parameter (only ?name is required)
+    - UPLOAD_URL=$(echo $CREATE_RESPONSE | jq -r .upload_url | sed -e "s/{.*}/\?name=${FILENAME}/g")
+    # Upload the asset file
+    - 'echo "curl -u \"$AUTHORIZATION\" -X POST -H \"$ACCEPTS_HEADER\" -H "Content-Type: application/zip" -T \"$FILEPATH\" \"$UPLOAD_URL\""'
+    - 'curl -u "$AUTHORIZATION" -X POST -H "$ACCEPTS_HEADER" -H "Content-Type: application/zip" -T "$FILEPATH" "$UPLOAD_URL"'
+  rules:
+    - if: $CI_COMMIT_BRANCH == "release"
+  needs:
+    - job: "opensilex-release:close"
+      artifacts: true
+
 
 # Trigger pipeline for data-analysis module deployment
 #trigger:dataanalysis:deploy:test:
@@ -235,9 +469,9 @@ update:nightly:builds:branch:
   rules:
     - if: $CI_COMMIT_BRANCH == "master"
 
-########################
+###############################################
 ##  BUILD - TESTS WITH DIFFERENT MAVEN VERSIONS
-########################
+###############################################
 
 ##  BUILD TEMPLATE
 .test:build: &test_build_on_schedules
@@ -257,9 +491,9 @@ update:nightly:builds:branch:
 
 ##  BUILD VERSIONS # example https://gitlab.com/gitlab-org/gitlab-foss/issues/13755
 
-.with_java8: &java8
+.with_java9: &java9
   variables:
-    JAVA_VERSION: 8
+    JAVA_VERSION: 9
 
 .with_java11: &java11
   variables:
@@ -277,8 +511,8 @@ update:nightly:builds:branch:
   variables:
     JAVA_VERSION: 14
 
-test:build:java8:
-  <<: *java8
+test:build:java9:
+  <<: *java9
   <<: *test_build_on_schedules
 
 test:build:java11:
@@ -318,7 +552,16 @@ pages:
 # ##########################################
 
 ###################################
-##  GUILHEM-TEST-SNAPSHOT-DEPLOYMENT
+##  DEMO-BUILD-DEPLOYMENT
+###################################
+
+demo:build:
+  <<: *build_template_with_opensilex
+  rules:
+    - if: $CI_COMMIT_BRANCH == "demo"
+
+###################################
+##  MAX-TEST-SNAPSHOT-DEPLOYMENT
 ###################################
 
 maximilian:build:
@@ -343,33 +586,6 @@ test:maximilian:deploy:
       when: on_success
   needs:
     - maximilian:build
-
-###################################
-##  SAMMY-TEST-SNAPSHOT-DEPLOYMENT
-###################################
-
-sammy:build:
-  <<: *build_template_with_opensilex
-  rules:
-    - if: $CI_COMMIT_BRANCH == "sammy"
-
-test:sammy:deploy:
-  <<: *deploy_opensilex_before_script
-  <<: *deploy_opensilex_template
-  variables:
-    CONFIGS_FILES_DIR_PATH: "${DEV_TOOLS_REPO_CONF_FILES_PATH}/mistea/sammy"
-    INSTANCE_CONFIGURATION_FILE_NAME: "phis.test.yml"
-    OPENSILEX_JAR_ADMIN_PORT: 4085
-    OPENSILEX_JAR_PORT: 8085
-    REMOTE_SERVER_RSYNC_ACCOUNT: "$REMOTE_PHIS_RSYNC_ACCOUNT"
-    REMOTE_SERVER_IP: "$REMOTE_TEST_SERVER_IP"
-    REMOTE_SERVER_RSYNC_DIR: "mistea/sammy"
-    REMOTE_SERVER_SSH_KEY: "$TEST_SSH_PRIVATE_KEY"
-  rules:
-    - if: $CI_COMMIT_BRANCH == "sammy"
-      when: on_success
-  needs:
-    - sammy:build
 
 ###################################
 ##  ARNAUD-TEST-BUILD-DEPLOYMENT
@@ -406,6 +622,8 @@ hamza:build:
   <<: *build_template_with_opensilex
   rules:
     - if: $CI_COMMIT_BRANCH == "hamza"
+  tags:
+    - stable
 
 test:hamza:deploy:
   <<: *deploy_opensilex_before_script
@@ -422,6 +640,8 @@ test:hamza:deploy:
   rules:
     - if: $CI_COMMIT_BRANCH == "hamza"
       when: on_success
+  tags:
+    - stable
   needs:
     - hamza:build
 
@@ -453,31 +673,143 @@ test:valentin:deploy:
     - valentin:build
 
 ###################################
-##  JULIEN-TEST-BUILD-DEPLOYMENT
+##  NOE-TEST-BUILD-DEPLOYMENT
 ###################################
 
-julien:build:
+noe:build:
   <<: *build_template_with_opensilex
   rules:
-    - if: $CI_COMMIT_BRANCH == "julien"
+    - if: $CI_COMMIT_BRANCH == "noe"
 
-test:julien:deploy:
+test:noe:deploy:
   <<: *deploy_opensilex_before_script
   <<: *deploy_opensilex_template
   variables:
-    CONFIGS_FILES_DIR_PATH: "${DEV_TOOLS_REPO_CONF_FILES_PATH}/mistea/julien"
+    CONFIGS_FILES_DIR_PATH: "${DEV_TOOLS_REPO_CONF_FILES_PATH}/mistea/noe"
+    INSTANCE_CONFIGURATION_FILE_NAME: "phis.test.yml"
+    OPENSILEX_JAR_ADMIN_PORT: 4091
+    OPENSILEX_JAR_PORT: 8091
+    REMOTE_SERVER_RSYNC_ACCOUNT: "$REMOTE_PHIS_RSYNC_ACCOUNT"
+    REMOTE_SERVER_IP: "$REMOTE_TEST_SERVER_IP"
+    REMOTE_SERVER_RSYNC_DIR: "mistea/noe"
+    REMOTE_SERVER_SSH_KEY: "$TEST_SSH_PRIVATE_KEY"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "noe"
+      when: on_success
+  needs:
+    - noe:build
+
+######################################
+##  OPTIMIZATION-TEST-BUILD-DEPLOYMENT
+######################################
+
+optimization:build:
+  <<: *build_template_with_opensilex
+  rules:
+    - if: $CI_COMMIT_BRANCH == "optimization"
+
+test:optimization:deploy:
+  <<: *deploy_opensilex_before_script
+  <<: *deploy_opensilex_template
+  variables:
+    CONFIGS_FILES_DIR_PATH: "${DEV_TOOLS_REPO_CONF_FILES_PATH}/mistea/optimization"
+    INSTANCE_CONFIGURATION_FILE_NAME: "phis.test.yml"
+    OPENSILEX_JAR_ADMIN_PORT: 4081
+    OPENSILEX_JAR_PORT: 8081
+    REMOTE_SERVER_RSYNC_ACCOUNT: "$REMOTE_PHIS_RSYNC_ACCOUNT"
+    REMOTE_SERVER_IP: "$REMOTE_TEST_SERVER_BENCHMARK_IP"
+    REMOTE_SERVER_RSYNC_DIR: "mistea/optimization"
+    REMOTE_SERVER_SSH_KEY: "$TEST_SSH_PRIVATE_KEY"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "optimization"
+      when: on_success
+  needs:
+    - optimization:build
+
+  ###################################
+  ##  SEBASTIEN-TEST-BUILD-DEPLOYMENT
+  ###################################
+
+sebastien:build:
+  <<: *build_template_with_opensilex
+  rules:
+    - if: $CI_COMMIT_BRANCH == "sebastien"
+
+test:sebastien:deploy:
+  <<: *deploy_opensilex_before_script
+  <<: *deploy_opensilex_template
+  variables:
+    CONFIGS_FILES_DIR_PATH: "${DEV_TOOLS_REPO_CONF_FILES_PATH}/mistea/sebastien"
+    INSTANCE_CONFIGURATION_FILE_NAME: "phis.test.yml"
+    OPENSILEX_JAR_ADMIN_PORT: 4089
+    OPENSILEX_JAR_PORT: 8089
+    REMOTE_SERVER_RSYNC_ACCOUNT: "$REMOTE_PHIS_RSYNC_ACCOUNT"
+    REMOTE_SERVER_IP: "$REMOTE_TEST_SERVER_IP"
+    REMOTE_SERVER_RSYNC_DIR: "mistea/sebastien"
+    REMOTE_SERVER_SSH_KEY: "$TEST_SSH_PRIVATE_KEY"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "sebastien"
+      when: on_success
+  needs:
+    - sebastien:build
+
+###################################
+##  BENDY-TEST-BUILD-DEPLOYMENT
+###################################
+
+bendy:build:
+  <<: *build_template_with_opensilex
+  rules:
+    - if: $CI_COMMIT_BRANCH == "bendy"
+
+test:bendy:deploy:
+  <<: *deploy_opensilex_before_script
+  <<: *deploy_opensilex_template
+  variables:
+    CONFIGS_FILES_DIR_PATH: "${DEV_TOOLS_REPO_CONF_FILES_PATH}/mistea/bendy"
+    INSTANCE_CONFIGURATION_FILE_NAME: "phis.test.yml"
+    OPENSILEX_JAR_ADMIN_PORT: 4100
+    OPENSILEX_JAR_PORT: 8100
+    REMOTE_SERVER_RSYNC_ACCOUNT: "$REMOTE_PHIS_RSYNC_ACCOUNT"
+    REMOTE_SERVER_IP: "$REMOTE_TEST_SERVER_IP"
+    REMOTE_SERVER_RSYNC_DIR: "mistea/bendy"
+    REMOTE_SERVER_SSH_KEY: "$TEST_SSH_PRIVATE_KEY"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "bendy"
+      when: on_success
+  needs:
+    - bendy:build
+
+###################################
+##  alexiaChiavarino-TEST-BUILD-DEPLOYMENT
+###################################
+
+alexiaChiavarino:build:
+  <<: *build_template_with_opensilex
+  rules:
+    - if: $CI_COMMIT_BRANCH == "alexiaChiavarino"
+  tags:
+    - stable
+
+test:alexiaChiavarino:deploy:
+  <<: *deploy_opensilex_before_script
+  <<: *deploy_opensilex_template
+  variables:
+    CONFIGS_FILES_DIR_PATH: "${DEV_TOOLS_REPO_CONF_FILES_PATH}/mistea/alexiaChiavarino"
     INSTANCE_CONFIGURATION_FILE_NAME: "phis.test.yml"
     OPENSILEX_JAR_ADMIN_PORT: 4087
     OPENSILEX_JAR_PORT: 8087
     REMOTE_SERVER_RSYNC_ACCOUNT: "$REMOTE_PHIS_RSYNC_ACCOUNT"
     REMOTE_SERVER_IP: "$REMOTE_TEST_SERVER_IP"
-    REMOTE_SERVER_RSYNC_DIR: "mistea/julien"
+    REMOTE_SERVER_RSYNC_DIR: "mistea/alexiaChiavarino"
     REMOTE_SERVER_SSH_KEY: "$TEST_SSH_PRIVATE_KEY"
   rules:
-    - if: $CI_COMMIT_BRANCH == "julien"
+    - if: $CI_COMMIT_BRANCH == "alexiaChiavarino"
       when: on_success
+  tags:
+    - stable
   needs:
-    - julien:build
+    - alexiaChiavarino:build
 
 ###################################
 ##  RENAUD-TEST-BUILD-DEPLOYMENT
@@ -507,58 +839,31 @@ test:renaud:deploy:
     - renaud:build
 
 ###################################
-##  VINCENT-TEST-BUILD-DEPLOYMENT
+## TEMPORARY-TEST-BUILD-DEPLOYMENT
 ###################################
 
-vincent:build:
+temporary1:build:
   <<: *build_template_with_opensilex
   rules:
-    - if: $CI_COMMIT_BRANCH == "vincent"
+    - if: $CI_COMMIT_BRANCH == "temporary1"
 
-test:vincent:deploy:
+test:temporary1:deploy:
   <<: *deploy_opensilex_before_script
   <<: *deploy_opensilex_template
   variables:
-    CONFIGS_FILES_DIR_PATH: "${DEV_TOOLS_REPO_CONF_FILES_PATH}/mistea/vincent"
-    INSTANCE_CONFIGURATION_FILE_NAME: "phis.test.yml"
-    OPENSILEX_JAR_ADMIN_PORT: 4089
-    OPENSILEX_JAR_PORT: 8089
-    REMOTE_SERVER_RSYNC_ACCOUNT: "$REMOTE_PHIS_RSYNC_ACCOUNT"
-    REMOTE_SERVER_IP: "$REMOTE_TEST_SERVER_IP"
-    REMOTE_SERVER_RSYNC_DIR: "mistea/vincent"
-    REMOTE_SERVER_SSH_KEY: "$TEST_SSH_PRIVATE_KEY"
-  rules:
-    - if: $CI_COMMIT_BRANCH == "vincent"
-      when: on_success
-  needs:
-    - vincent:build
-
-###################################
-## ALEXANDRE-TEST-BUILD-DEPLOYMENT
-###################################
-
-alexandre:build:
-  <<: *build_template_with_opensilex
-  rules:
-    - if: $CI_COMMIT_BRANCH == "alexandre"
-
-test:alexandre:deploy:
-  <<: *deploy_opensilex_before_script
-  <<: *deploy_opensilex_template
-  variables:
-    CONFIGS_FILES_DIR_PATH: "${DEV_TOOLS_REPO_CONF_FILES_PATH}/mistea/alexandre"
+    CONFIGS_FILES_DIR_PATH: "${DEV_TOOLS_REPO_CONF_FILES_PATH}/mistea/temporary1"
     INSTANCE_CONFIGURATION_FILE_NAME: "phis.test.yml"
     OPENSILEX_JAR_ADMIN_PORT: 4092
     OPENSILEX_JAR_PORT: 8092
     REMOTE_SERVER_RSYNC_ACCOUNT: "$REMOTE_PHIS_RSYNC_ACCOUNT"
     REMOTE_SERVER_IP: "$REMOTE_TEST_SERVER_IP"
-    REMOTE_SERVER_RSYNC_DIR: "mistea/alexandre"
+    REMOTE_SERVER_RSYNC_DIR: "mistea/temporary1"
     REMOTE_SERVER_SSH_KEY: "$TEST_SSH_PRIVATE_KEY"
   rules:
-    - if: $CI_COMMIT_BRANCH == "alexandre"
+    - if: $CI_COMMIT_BRANCH == "temporary1"
       when: on_success
   needs:
-    - alexandre:build
+    - temporary1:build
 
 ###################################
 ##  EMILIE-TEST-SNAPSHOT-DEPLOYMENT
@@ -644,3 +949,12 @@ test:guilhem:deploy:
       when: on_success
   needs:
     - guilhem:build
+
+######################################
+##  PHENO3C-PROD-BUILD-DEPLOYMENT
+######################################
+
+pheno3c:build:
+  <<: *build_template_with_opensilex
+  rules:
+    - if: $CI_COMMIT_BRANCH == "pheno3c"

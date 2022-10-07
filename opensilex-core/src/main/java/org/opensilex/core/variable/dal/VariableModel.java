@@ -6,23 +6,25 @@
 package org.opensilex.core.variable.dal;
 
 import org.apache.jena.vocabulary.SKOS;
-import org.opensilex.core.germplasm.dal.GermplasmModel;
 import org.opensilex.core.ontology.Oeso;
 import org.opensilex.core.species.dal.SpeciesModel;
 import org.opensilex.sparql.annotations.SPARQLProperty;
 import org.opensilex.sparql.annotations.SPARQLResource;
-import org.opensilex.sparql.utils.ClassURIGenerator;
+import org.opensilex.uri.generation.ClassURIGenerator;
 
 import java.net.URI;
+import java.util.List;
 
 
 @SPARQLResource(
         ontology = Oeso.class,
         resource = "Variable",
-        graph = "set/variables",
+        graph = VariableModel.GRAPH,
         ignoreValidation = true
 )
 public class VariableModel extends BaseVariableModel<VariableModel> implements ClassURIGenerator<VariableModel> {
+
+    public static final String GRAPH = "variable";
 
     @SPARQLProperty(
             ontology = SKOS.class,
@@ -38,7 +40,14 @@ public class VariableModel extends BaseVariableModel<VariableModel> implements C
     )
     private EntityModel entity;
     public static final String ENTITY_FIELD_NAME = "entity";
-
+    
+    @SPARQLProperty(
+            ontology = Oeso.class,
+            property = "hasEntityOfInterest"
+    )
+    private InterestEntityModel entityOfInterest;
+    public static final String ENTITY_OF_INTEREST_FIELD_NAME = "entityOfInterest";
+            
     @SPARQLProperty(
             ontology = Oeso.class,
             property = "hasCharacteristic",
@@ -61,7 +70,8 @@ public class VariableModel extends BaseVariableModel<VariableModel> implements C
 
     @SPARQLProperty(
             ontology = Oeso.class,
-            property = "hasMethod"
+            property = "hasMethod",
+            required = true
     )
     private MethodModel method;
     public static final String METHOD_FIELD_NAME = "method";
@@ -79,6 +89,7 @@ public class VariableModel extends BaseVariableModel<VariableModel> implements C
             property = "hasTimeInterval"
     )
     private String timeInterval;
+    public static final String TIME_INTERVAL_FIELD_NAME = "timeInterval";
 
     @SPARQLProperty(
         ontology = Oeso.class,
@@ -92,12 +103,14 @@ public class VariableModel extends BaseVariableModel<VariableModel> implements C
             required = true
     )
     private URI dataType;
-
+    public static final String DATA_TYPE_FIELD_NAME = "dataType";
+    
     @SPARQLProperty(
             ontology = Oeso.class,
             property = "hasSpecies"
     )
-    private SpeciesModel species;
+    private List<SpeciesModel> species;
+    public static final String SPECIES_FIELD_NAME = "species";
 
     public String getAlternativeName() { return alternativeName; }
 
@@ -110,7 +123,15 @@ public class VariableModel extends BaseVariableModel<VariableModel> implements C
     public void setEntity(EntityModel entity) {
         this.entity = entity;
     }
-
+    
+    public InterestEntityModel getEntityOfInterest(){
+        return entityOfInterest;
+    }
+    
+    public void setEntityOfInterest(InterestEntityModel entityOfInterest){
+        this.entityOfInterest = entityOfInterest;
+    }
+    
     public CharacteristicModel getCharacteristic() {
         return characteristic;
     }
@@ -159,20 +180,13 @@ public class VariableModel extends BaseVariableModel<VariableModel> implements C
 
     public void setDataType(URI dataType) { this.dataType = dataType; }
 
-    public SpeciesModel getSpecies() {
+    public List<SpeciesModel> getSpecies() {
         return species;
     }
 
-    public void setSpecies(SpeciesModel species) {
+    public void setSpecies(List<SpeciesModel> species) {
         this.species = species;
     }
 
-    @Override
-    public String[] getUriSegments(VariableModel instance) {
-        return new String[]{
-            "variable",
-            instance.getName()
-        };
-    }
 }
 

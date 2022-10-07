@@ -1,18 +1,14 @@
 <template>
   <div class="container-fluid">
-    <opensilex-PageHeader
-        icon="ik#ik-activity"
-        title="Event.list-title"
-        description="EventsView.description"
-        :isExperimentalFeature="false"
-    ></opensilex-PageHeader>
-
-    <opensilex-PageContent>
+    <opensilex-PageContent
+    class="eventsContent">
       <template v-slot>
         <opensilex-EventList
             ref="eventList"
             :enableActions="true"
             :columnsToDisplay="new Set(['type','start','end','description', 'targets'])"
+            :modificationCredentialId="credentials.CREDENTIAL_EVENT_MODIFICATION_ID"
+            :deleteCredentialId="credentials.CREDENTIAL_EVENT_DELETE_ID"
             :displayTitle="false"
             :isExperimentalFeature="false"
         ></opensilex-EventList>
@@ -58,6 +54,9 @@
 
 
 <style scoped lang="scss">
+.eventsContent {
+  margin-top: -25px;
+}
 </style>
 
 

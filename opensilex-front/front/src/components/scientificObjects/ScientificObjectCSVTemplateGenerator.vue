@@ -7,7 +7,6 @@
     @hide="requiredField = false"
     @show="requiredField = true"
   >
-    <template v-slot:modal-ok>{{ $t("component.common.close") }}</template>
     <template v-slot:modal-title>{{
       $t("ScientificObjectCSVTemplateGenerator.title")
     }}</template>
@@ -29,17 +28,29 @@
             </opensilex-CSVSelectorInputForm>
           </b-col>
         </b-row>
-        <b-button @click="csvExport" variant="outline-primary">{{
+        <b-button @click="csvExport" class="greenThemeColor">{{
           $t("OntologyCsvImporter.downloadTemplate")
         }}</b-button>
       </ValidationObserver>
     </div>
+
+    <template v-slot:modal-footer>
+      <button
+          type="button"
+          class="btn greenThemeColor"
+          v-on:click="hide(false)"
+      >
+          {{ $t('component.common.close') }}
+      </button>
+  </template>
+
   </b-modal>
 </template>
 
 <script lang="ts">
 import { Component, Prop, Ref } from "vue-property-decorator";
 import Vue from "vue";
+import {VueRDFTypePropertyDTO} from "../../lib";
 
 @Component
 export default class ScientificObjectCSVTemplateGenerator extends Vue {
@@ -74,6 +85,9 @@ export default class ScientificObjectCSVTemplateGenerator extends Vue {
   show() {
     this.soModalRef.show();
   }
+  hide() {
+    this.soModalRef.hide();
+  }
 
   validateTemplate() {
     return this.validatorRefTemplate.validate();
@@ -98,15 +112,13 @@ export default class ScientificObjectCSVTemplateGenerator extends Vue {
               )
               .then((http) => {
                 let properties = {};
-                for (let dataProp of http.response.result.data_properties) {
-                  let propURI = dataProp.property;
-                  properties[propURI] = dataProp;
-                }
+                http.response.result.data_properties.forEach((propertyDTO: VueRDFTypePropertyDTO) => {
+                  properties[propertyDTO.uri] = propertyDTO;
+                });
 
-                for (let objProp of http.response.result.object_properties) {
-                  let propURI = objProp.property;
-                  properties[propURI] = objProp;
-                }
+                http.response.result.object_properties.forEach((propertyDTO: VueRDFTypePropertyDTO) => {
+                  properties[propertyDTO.uri] = propertyDTO;
+                });
 
                 return {
                   uri: type,
@@ -123,10 +135,10 @@ export default class ScientificObjectCSVTemplateGenerator extends Vue {
             "name",
             "vocabulary:hasCreationDate",
             "vocabulary:hasDestructionDate",
-            "vocabulary:hasFacility",
+            "vocabulary:isHosted",
             "vocabulary:isPartOf",
             "rdfs:comment",
-            "geometry",
+            "vocabulary:hasGeometry",
           ];
 
           let descriptionByHeaders = {
@@ -168,7 +180,7 @@ export default class ScientificObjectCSVTemplateGenerator extends Vue {
               this.$t("ScientificObjectCSVTemplateGenerator.required") +
               ": " +
               this.$t("component.common.no"),
-            "vocabulary:hasFacility":
+            "vocabulary:isHosted":
               this.$t("ScientificObjectImportHelp.hasFacility-help") +
               "\n" +
               this.$t("ScientificObjectCSVTemplateGenerator.data-type") +

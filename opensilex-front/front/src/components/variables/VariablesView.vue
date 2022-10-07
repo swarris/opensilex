@@ -1,41 +1,42 @@
 <template>
     <div class="container-fluid">
-        <opensilex-PageHeader
-            icon="fa#vials"
-            title="VariableView.title"
-            description="VariableView.description"
-        ></opensilex-PageHeader>
-
         <div>
             <opensilex-PageActions>
                 <div>
                     <b-tabs content-class="mt-3" :value=elementIndex @input="updateType">
                         <b-tab :title="$t('component.menu.variables')" @click="refreshSelected"></b-tab>
                         <b-tab :title="$t('VariableView.entity')" @click="refreshSelected"></b-tab>
+                        <b-tab :title="$t('VariableView.entityOfInterest')" @click="refreshSelected"></b-tab>
                         <b-tab :title="$t('VariableView.characteristic')" @click="refreshSelected"></b-tab>
                         <b-tab :title="$t('VariableView.method')" @click="refreshSelected"></b-tab>
                         <b-tab :title="$t('VariableView.unit')" @click="refreshSelected"></b-tab>
-                        <b-tab :title="$t('VariableView.groupVariable')" @click="refreshSelected"></b-tab> <!--Ajout de Hamza-->
+                        <b-tab :title="$t('VariableView.groupVariable')" @click="refreshSelected"></b-tab>
                     </b-tabs>
                 </div>
-
+                </opensilex-PageActions>
                 <div class="col-lg-5">
-                    <opensilex-HelpButton
+                    <opensilex-PageActions
+                    >
+                        <opensilex-HelpButton
                             @click="helpModal.show()"
                             label="component.common.help-button"
-                    ></opensilex-HelpButton>
-                    <b-modal ref="helpModal" size="xl" hide-header ok-only>
-                        <opensilex-VariableHelp v-if="elementType != 'VariableGroup'"></opensilex-VariableHelp>
-                        <opensilex-GroupVariablesHelp v-else></opensilex-GroupVariablesHelp>
-                    </b-modal>
+                            class="helpButton"
+                        ></opensilex-HelpButton>
+                        
+                        <b-modal ref="helpModal" size="xl" hide-header hide-footer>
+                            <opensilex-VariableHelp v-if="elementType != 'VariableGroup'" @hideBtnIsClicked="hide()"></opensilex-VariableHelp>
+                            <opensilex-GroupVariablesHelp v-else @hideBtnIsClicked="hide()"></opensilex-GroupVariablesHelp>
+                        </b-modal>
 
-                    <opensilex-CreateButton
-                        v-show="user.hasCredential(credentials.CREDENTIAL_VARIABLE_MODIFICATION_ID)"
-                        @click="showCreateForm"
-                        :label="buttonTitle"
-                    ></opensilex-CreateButton>
+                        <opensilex-CreateButton
+                            v-show="user.hasCredential(credentials.CREDENTIAL_VARIABLE_MODIFICATION_ID)"
+                            @click="showCreateForm"
+                            :label="buttonTitle"
+                            class="createButton"
+                        ></opensilex-CreateButton>
+
+                    </opensilex-PageActions>
                 </div>
-            </opensilex-PageActions>
             <opensilex-PageContent
                 v-if="loadVariableList()" >
                 <template v-slot>
@@ -44,6 +45,7 @@
                         @onEdit="showVariableEditForm" 
                         @onInteroperability="showVariableReferences"
                         @onDelete="deleteVariable"
+                        @onReset="refreshRouteName"
                     ></opensilex-VariableList>
                 </template>
             </opensilex-PageContent>
@@ -60,6 +62,10 @@
                 ref="entityForm" @onCreate="refresh($event.uri)" @onUpdate="refresh($event.uri)"
             ></opensilex-EntityCreate>
 
+            <opensilex-InterestEntityCreate
+                ref="interestEntityForm" @onCreate="refresh($event.uri)" @onUpdate="refresh($event.uri)"
+            ></opensilex-InterestEntityCreate>
+
             <opensilex-CharacteristicModalForm
                 ref="characteristicForm" @onCreate="refresh($event.uri)" @onUpdate="refresh($event.uri)"
             ></opensilex-CharacteristicModalForm>
@@ -73,7 +79,7 @@
             ></opensilex-UnitCreate>
 
             <opensilex-ModalForm
-                v-if="user.hasCredential(credentials.CREDENTIAL_VARIABLE_MODIFICATION_ID)"
+                v-if="user.hasCredential(credentials.CREDENTIAL_VARIABLE_MODIFICATION_ID) && loadGroupForm"
                 ref="groupVariablesForm"
                 modalSize="lg"
                 :tutorial="false"
@@ -116,16 +122,17 @@
                         </template>
                     </opensilex-Card>
 
-                    <opensilex-Card v-if="!loadVariableList() && useGenericDetailsPage() && groupVariablesPage() && selected.variables != undefined" :label="$t('VariableView.type')" :selected="selected">
+                    <opensilex-Card v-if="!loadVariableList() && useGenericDetailsPage() && groupVariablesPage() && selected.variables != undefined" :label="$t('VariableView.type')" :selected="selected" icon="fa#vials">
                         <template v-slot:body>
 
                             <opensilex-TableView
                             v-if="groupVariablesPage() && selected.variables.length !== 0"
                             :items="selected.variables"
                             :fields="relationsFields"
-                            :globalFilterField="true">
+                            :globalFilterField="true"
+                            sortBy="name">
 
-                                <template v-slot:cell(uri)="{data}">
+                                <template v-slot:cell(name)="{data}">
                                     <opensilex-UriLink
                                     :uri="data.item.uri"
                                     :value="data.item.name"
@@ -135,16 +142,16 @@
 
                             </opensilex-TableView>
 
-                            <p v-else><strong>{{$t("GroupVariablesDetails.no-var-provided")}}</strong></p>
+                            <p v-else><strong>{{$t("VariableView.no-var-provided")}}</strong></p>
 
                         </template>
                     </opensilex-Card>
 
                     <opensilex-DocumentTabList
                         v-if="selected && selected.uri"
-                        v-show="! loadVariableList() && useGenericDetailsPage() && documentMethodPage()" 
+                        v-show="! loadVariableList() && useGenericDetailsPage() && (documentMethodPage() || groupVariablesPage())"  
                         :selected="selected"
-                        :uri="selected.uri"
+                        :uri="[selected.uri]"
                         :search=false
                     ></opensilex-DocumentTabList>
 
@@ -160,6 +167,7 @@ import {Component, Ref} from "vue-property-decorator";
 import Vue from "vue";
 import VariableStructureList from "./views/VariableStructureList.vue";
 import EntityCreate from "./form/EntityCreate.vue";
+import InterestEntityCreate from "./form/InterestEntityCreate.vue";
 import UnitCreate from "./form/UnitCreate.vue";
 import VariableCreate from "./form/VariableCreate.vue";
 import VariableList from "./VariableList.vue";
@@ -168,6 +176,7 @@ import ExternalReferencesModalForm from "../common/external-references/ExternalR
 import { VariablesService, DataService } from "opensilex-core/index";
 import HttpResponse, { OpenSilexResponse } from "opensilex-core/HttpResponse";
 import OpenSilexVuePlugin from "../../models/OpenSilexVuePlugin";
+import ModalForm from "../common/forms/ModalForm.vue";
 
 
 @Component
@@ -186,6 +195,7 @@ export default class VariablesView extends Vue {
 
     static VARIABLE_TYPE: string = "Variable";
     static ENTITY_TYPE: string = "Entity";
+    static INTEREST_ENTITY_TYPE: string = "InterestEntity";
     static CHARACTERISTIC_TYPE: string = "Characteristic";
     static METHOD_TYPE: string = "Method";
     static UNIT_TYPE:  string = "Unit";
@@ -194,6 +204,7 @@ export default class VariablesView extends Vue {
     static elementTypes = [
         VariablesView.VARIABLE_TYPE,
         VariablesView.ENTITY_TYPE,
+        VariablesView.INTEREST_ENTITY_TYPE,
         VariablesView.CHARACTERISTIC_TYPE,
         VariablesView.METHOD_TYPE,
         VariablesView.UNIT_TYPE,
@@ -202,10 +213,16 @@ export default class VariablesView extends Vue {
 
     @Ref("variableCreate") readonly variableCreate!: VariableCreate;
     @Ref("entityForm") readonly entityForm!: EntityCreate;
+    @Ref("interestEntityForm") readonly interestEntityForm!: InterestEntityCreate;
     @Ref("characteristicForm") readonly characteristicForm!: any;
     @Ref("methodForm") readonly methodForm!: any;
     @Ref("unitForm") readonly unitForm!: UnitCreate;
-    @Ref("groupVariablesForm") readonly groupVariablesForm!: any;
+
+    /**
+     * Lazy loading of modal group form, this ensures to not load nested variable selected which trigger an API call
+     */
+    loadGroupForm: boolean = false;
+    @Ref("groupVariablesForm") readonly groupVariablesForm!: ModalForm;
 
     @Ref("skosReferences") skosReferences!: ExternalReferencesModalForm;
 
@@ -218,7 +235,7 @@ export default class VariablesView extends Vue {
 
     relationsFields: any[] = [
       {
-        key: "uri",
+        key: "name",
         label: "component.common.name",
         sortable: true,
       }
@@ -236,6 +253,13 @@ export default class VariablesView extends Vue {
         }else{
             let variableIdx = VariablesView.elementTypes.findIndex(elem => elem == VariablesView.VARIABLE_TYPE);
             this.updateType(variableIdx);
+        }
+    }
+
+    private refreshRouteName(){
+        if(this.$route.query.name) {
+            this.$route.query.name = undefined;
+            this.$opensilex.updateURLParameter("name", "");
         }
     }
 
@@ -332,6 +356,9 @@ export default class VariablesView extends Vue {
             case VariablesView.ENTITY_TYPE : {
                 return this.entityForm;
             }
+            case VariablesView.INTEREST_ENTITY_TYPE : {
+                return this.interestEntityForm;
+            }
             case VariablesView.CHARACTERISTIC_TYPE : {
                 return this.characteristicForm;
             }
@@ -358,6 +385,9 @@ export default class VariablesView extends Vue {
             case VariablesView.ENTITY_TYPE : {
                 return "add-entity";
             }
+            case VariablesView.INTEREST_ENTITY_TYPE : {
+                return "add-entityOfInterest";
+            }
             case VariablesView.CHARACTERISTIC_TYPE : {
                 return "add-characteristic";
             }
@@ -378,7 +408,16 @@ export default class VariablesView extends Vue {
 
 
     showCreateForm(){
-        this.getForm().showCreateForm();
+
+        // ensure that the group form component is loaded
+        if(this.elementType == VariablesView.GROUP_VARIABLE_TYPE){
+            this.loadGroupForm = true;
+            this.$nextTick(() => {
+                this.getForm().showCreateForm();
+            })
+        }else{
+            this.getForm().showCreateForm();
+        }
     }
 
     formatVariablesGroup(dto : any) {
@@ -391,8 +430,14 @@ export default class VariablesView extends Vue {
 
     showEditForm(dto : any){
         if (this.elementType == VariablesView.GROUP_VARIABLE_TYPE) {
-            let formatVariableGroup = this.formatVariablesGroup(dto);
-            this.getForm().showEditForm(formatVariableGroup);
+
+            // ensure that the group form component is loaded
+            this.loadGroupForm = true;
+            this.$nextTick(() => {
+
+                let formatVariableGroup = this.formatVariablesGroup(dto);
+                this.getForm().showEditForm(formatVariableGroup);
+            });
         }
         else{
             this.getForm().showEditForm(dto);
@@ -494,10 +539,31 @@ export default class VariablesView extends Vue {
         }).catch(this.$opensilex.errorHandler);
     }
 
+    hide() {
+        this.helpModal.hide();
+    }
 }
 </script>
 
 <style scoped lang="scss">
+
+.createButton, .helpButton{
+  margin-bottom: 5px;
+  margin-top: -10px;
+  margin-left: -10px;
+  margin-right: 15px;
+}
+.helpButton {
+  margin-left: -15px;
+  color: #00A28C;
+  font-size: 1.2em;
+  border: none
+}
+  
+.helpButton:hover {
+  background-color: #00A28C;
+  color: #f1f1f1
+}
 </style>
 
 <i18n>
@@ -510,14 +576,17 @@ en:
         add-variable: Add variable
         entity: Entity
         add-entity: Add entity
+        entityOfInterest: Observation level
+        add-entityOfInterest: Add observation level
         characteristic: Characteristic
         add-characteristic: Add characteristic
         method: Method
         add-method: Add method
-        unit: "Unit/Level"
+        unit: "Unit/Scale"
         add-unit: Add unit
         groupVariable: "Group of variables"
         add-groupVariable: Add a group of variables
+        no-var-provided: No variable provided
 
 fr:
     VariableView:
@@ -528,14 +597,17 @@ fr:
         add-variable: Ajouter une variable
         entity: Entité
         add-entity: Ajouter une entité
+        entityOfInterest: Niveau d'observation
+        add-entityOfInterest: Ajouter un niveau d'observation
         characteristic: Caractéristique
         add-characteristic: Ajouter une caractéristique
         method: Méthode
         add-method: Ajouter une méthode
-        unit: "Unité/Niveau"
+        unit: "Unité/Echelle"
         add-unit: Ajouter une unité
         groupVariable: "Groupe de variables"
         add-groupVariable: Ajouter un groupe de variables
+        no-var-provided: Aucune variable associée
 
 </i18n>
 

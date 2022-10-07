@@ -1,56 +1,97 @@
 <template>
   <div>
-    <opensilex-SearchFilterField @clear="reset()" @search="refresh()">
+    <opensilex-PageContent
+      class="pagecontent"
+    >
+           <!-- Toggle Sidebar--> 
+      <div class="searchMenuContainer"
+      v-on:click="SearchFiltersToggle = !SearchFiltersToggle"
+      :title="searchFiltersPannel()">
+        <div class="searchMenuIcon">
+          <i class="ik ik-search"></i>
+        </div>
+      </div>
+        <!-- FILTERS -->
+      <Transition>
+        <div v-show="SearchFiltersToggle">
+    <opensilex-SearchFilterField
+    @clear="reset()"
+    @search="refresh()"
+    class="searchFilterField">
       <template v-slot:filters>
+
+        <!-- Name -->
+        <div>
         <opensilex-FilterField>
           <label for="name">{{ $t("component.common.name") }}</label>
           <opensilex-StringFilter
             id="name"
             :filter.sync="filter.name"
             placeholder="component.project.filter-label-placeholder"
+            class="searchFilter"
           ></opensilex-StringFilter>
-        </opensilex-FilterField>
+        </opensilex-FilterField><br>
+        </div>
 
+          <!-- Year -->
+        <div>
         <opensilex-FilterField>
           <label>{{ $t("component.common.year") }}</label>
           <opensilex-StringFilter
             placeholder="component.project.filter-year-placeholder"
             :filter.sync="filter.year"
             type="number"
+            class="searchFilter"
           ></opensilex-StringFilter>
-        </opensilex-FilterField>
+        </opensilex-FilterField><br>
+        </div>
 
+        <!-- Keyword -->
+        <div>
         <opensilex-FilterField>
           <label for="term">{{ $t("component.common.keyword") }}</label>
           <opensilex-StringFilter
             id="term"
             :filter.sync="filter.keyword"
             placeholder="component.project.filter-keywords-placeholder"
+            class="searchFilter"
           ></opensilex-StringFilter>
-        </opensilex-FilterField>
+        </opensilex-FilterField><br>
+        </div>
 
+        <!-- Financial Funding -->
+        <div>
         <opensilex-FilterField>
           <label for="financial">{{ $t("component.project.financialFunding") }}</label>
           <opensilex-StringFilter
             id="financial"
             :filter.sync="filter.financial"
             placeholder="component.project.filter-financial-placeholder"
+            class="searchFilter"
           ></opensilex-StringFilter>
-        </opensilex-FilterField>
+        </opensilex-FilterField><br>
+        </div>
         
       </template>
     </opensilex-SearchFilterField>
+            </div>
+        </Transition>
     <opensilex-TableAsyncView
       ref="tableRef"
       :searchMethod="loadData"
       :fields="fields"
       defaultSortBy="start_date"
+      :defaultPageSize="pageSize"
       :isSelectable="true"
-      :maximumSelectedRows="maximumSelectedRows"
       labelNumberOfSelectedRow="component.project.selectedLabel"
+      @select="$emit('select', $event)"
+      @unselect="$emit('unselect', $event)"
+      @selectall="$emit('selectall', $event)"
     >
       <template v-slot:selectableTableButtons="{ numberOfSelectedRows }">
         <b-dropdown
+
+          v-if="!noActions" 
           dropright
           class="mb-2 mr-2"
           :small="true"
@@ -62,7 +103,6 @@
       </template>
       <template v-slot:cell(name)="{ data }">
         <opensilex-UriLink
-          v-if="!noActions"
           :uri="data.item.uri"
           :value="data.item.name"
           :to="{
@@ -122,12 +162,13 @@
       :initForm="initForm"
       icon="ik#ik-file-text"
     ></opensilex-ModalForm>
+    </opensilex-PageContent>
   </div>
 </template>
 
 <script lang="ts">
 import moment from "moment";
-import { Component, Ref, Prop } from "vue-property-decorator";
+import { Component, Ref, Prop,PropSync } from "vue-property-decorator";
 import Vue from "vue";
 // @ts-ignore
 import { ProjectsService } from "opensilex-core/index";
@@ -140,6 +181,7 @@ export default class ProjectList extends Vue {
   service: ProjectsService;
 
   @Ref("documentForm") readonly documentForm!: any;
+  @Ref("tableRef") readonly tableRef!: any;
 
   get user() {
     return this.$store.state.user;
@@ -158,9 +200,11 @@ export default class ProjectList extends Vue {
   })
   noActions;
 
-  @Prop()
-  maximumSelectedRows;
-
+  @Prop({
+    default: 20
+  })
+  pageSize: number;
+  
   @Prop({
     default: false
   })
@@ -170,8 +214,9 @@ export default class ProjectList extends Vue {
     year: undefined,
     name: "",
     keyword: "",
-    financial: "",
-  };
+    financial: ""
+    };
+ 
 
   reset() {
     this.filter = {
@@ -181,6 +226,15 @@ export default class ProjectList extends Vue {
       financial: "",
     };
     this.refresh();
+  }
+  data(){
+    return {
+      SearchFiltersToggle : false,
+    }
+  }
+
+  searchFiltersPannel() {
+    return  this.$t("searchfilter.label")
   }
 
   created() {
@@ -233,16 +287,16 @@ export default class ProjectList extends Vue {
     return this.tableRef.getSelected();
   }
 
-  @Ref("tableRef") readonly tableRef!: any;
+
   refresh() {
+    
     this.tableRef.selectAll = false;
     this.tableRef.onSelectAll();
-
+    this.tableRef.refresh();
     if (!this.noUpdateURL) {
       this.$opensilex.updateURLParameters(this.filter);
     }
 
-    this.tableRef.refresh();
   }
 
   loadData(options) {

@@ -1,4 +1,6 @@
 <template>
+
+ 
   <opensilex-FormField
     :rules="rules"
     :required="required"
@@ -6,8 +8,11 @@
     :helpMessage="helpMessage"
   >
     <template v-slot:field="field">
+
+      <b-spinner small label="Small Spinning" v-if="loading"></b-spinner>
       <input :id="field.id" type="hidden" :value="hiddenValue" />
       <b-input-group class="select-button-container">
+        <!-- First case : modal search-->
         <treeselect
           v-if="isModalSearch"
           class="multiselect-popup"
@@ -24,6 +29,7 @@
           @input="clearIfNeeded"
           @deselect="searchModal.unSelect($event)"
           @open="showModal"
+          :limit="limit"
         >
           <template v-slot:option-label="{ node }">
             <slot name="option-label" v-bind:node="node">{{ node.label }}</slot>
@@ -32,46 +38,7 @@
             <slot name="value-label" v-bind:node="node">{{ node.label }}</slot>
           </template>
         </treeselect>
-        <treeselect
-          v-else-if="optionsLoadingMethod"
-          v-bind:class="{
-            'multiselect-action': actionHandler,
-            'multiselect-view': viewHandler,
-          }"
-          :multiple="multiple"
-          :flat="multiple && flat"
-          :value="selectedValues"
-          valueFormat="node"
-          :async="searchMethod != null"
-          :default-options="searchMethod != null"
-          :load-options="loadOptions"
-          :options="internalOption"
-          :placeholder="$t(placeholder)"
-          :disabled="disabled"
-          :clearable="clearable"
-          :defaultExpandLevel="2"
-          @deselect="deselect"
-          @select="select"
-          @input="clearIfNeeded"
-          @close="close(field)"
-          :noResultsText="$t(noResultsText)"
-          :searchPromptText="$t('component.common.search-prompt-text')"
-          :disable-branch-nodes="disableBranchNodes"
-          :search-nested="searchNested"
-          :show-count="showCount"
-        >
-          <template v-slot:option-label="{ node }">
-            <slot name="option-label" v-bind:node="node">{{ node.label }}</slot>
-          </template>
-          <template v-slot:value-label="{ node }">
-            <slot name="value-label" v-bind:node="node">{{ node.label }}</slot>
-          </template>
-          <template v-if="resultCount < totalCount" v-slot:after-list>
-            <i class="more-results-info">{{
-              $t("SelectorForm.refineSearchMessage", [resultCount, totalCount])
-            }}</i>
-          </template>
-        </treeselect>
+        <!-- Second case : not modal -->
         <treeselect
           v-else
           v-bind:class="{
@@ -99,6 +66,7 @@
           :disable-branch-nodes="disableBranchNodes"
           :search-nested="searchNested"
           :show-count="showCount"
+          :limit="limit"
         >
           <template v-slot:option-label="{ node }">
             <slot name="option-label" v-bind:node="node">{{ node.label }}</slot>
@@ -113,7 +81,7 @@
           </template>
         </treeselect>
         <b-input-group-append v-if="isModalSearch">
-          <b-button variant="primary" @click="showModal">>></b-button>
+          <b-button class="createButton greenThemeColor" @click="showModal">>></b-button>
         </b-input-group-append>
         <b-input-group-append v-else-if="!actionHandler && viewHandler">
            <opensilex-DetailButton
@@ -122,10 +90,11 @@
             :detailVisible="viewHandlerDetailsVisible"
             :label="(viewHandlerDetailsVisible ? 'SelectorForm.hideDetails' : 'SelectorForm.showDetails')"
             :small="true"
+            class="greenThemeColor"
           ></opensilex-DetailButton>
         </b-input-group-append>
         <b-input-group-append v-else-if="actionHandler">
-          <b-button variant="primary" @click="actionHandler">+</b-button>
+          <b-button class="greenThemeColor" @click="actionHandler">+</b-button>
           <opensilex-DetailButton
             v-if="viewHandler"
             @click="viewHandler"
@@ -134,7 +103,6 @@
             :small="true"
           ></opensilex-DetailButton>
         </b-input-group-append>
-   
       </b-input-group>
       <component
         v-if="isModalSearch"
@@ -142,24 +110,35 @@
         ref="searchModal"
         :maximumSelectedRows="maximumSelectedItems"
         :searchFilter.sync="searchModalFilter"
-        @onValidate="updateValues"
+        :withAssociatedData="withAssociatedData"
+        :experiment="experiment"
+        :objects="objects"
+        :devices="devices"
+        @onClose="$emit('onClose')"
+        @onValidate="onValidate"
         @shown="showModalSearch"
         @close='$emit("close")'
         @clear='$emit("clear")'
+        @select="select(conversionMethod($event))"
+        @unselect="deselect(conversionMethod($event))"
+        @selectall="selectall"
+        class="isModalSearchComponent"
       ></component>
+
     </template>
   </opensilex-FormField>
 </template>
 
 <script lang="ts">
 import { Component, Prop, PropSync, Watch, Ref } from "vue-property-decorator";
-import Vue, { PropOptions } from "vue";
+import Vue from "vue";
 import AsyncComputedProp from "vue-async-computed-decorator";
 
 @Component
 export default class SelectForm extends Vue {
   $opensilex: any;
   currentValue;
+  loading = false;
 
   @Ref("searchModal") readonly searchModal!: any;
 
@@ -212,8 +191,15 @@ export default class SelectForm extends Vue {
   @Prop({
     type: Function,
     default: function (e) {
-      return e;
-    },
+      if (e && e.name) {
+        return {
+            id: e.uri,
+            label: (e.name.length > 20) ? e.name.substr(0, 20-1) + '...' : e.name
+          };
+      } else {
+        return e;
+      }
+    }
   })
   conversionMethod: Function;
 
@@ -286,66 +272,105 @@ export default class SelectForm extends Vue {
 
   @Prop()
   maximumSelectedItems;
+
+  @Prop()
+  limit: number; // limit number of items in the input box
+
+  // props for variableSelectorWithFilter
+  @Prop()
+  withAssociatedData;
+
+  @Prop()
+  experiment;
+
+  @Prop()
+  objects;
+
+  @Prop()
+  devices;
+
   detailVisible: boolean = false;
+  selectedCopie = [] ;
 
   @AsyncComputedProp()
   selectedValues(): Promise<any> {
     return new Promise((resolve, reject) => {
-      if (this.itemLoadingMethod) {
+      if (this.isModalSearch) {
         if (!this.selection || this.selection.length == 0) {
-          if (this.multiple) {
-            resolve([]);
-          } else {
-            resolve();
-          }
+          resolve([]);
         } else if (this.currentValue) {
           resolve(this.currentValue);
         } else {
-          this.$opensilex.disableLoader();
-          let uris = this.selection;
-          if (!this.multiple) {
-            uris = [this.selection];
+          let nodeList = [];
+          this.selectedCopie.forEach((item) => {
+            nodeList.push(this.conversionMethod(item));
+          });
+          this.currentValue = nodeList;
+          if (this.loading) {
+            this.loading = false;
           }
-          let loadingPromise = this.itemLoadingMethod(uris);
-          if (!(loadingPromise instanceof Promise)) {
-            loadingPromise = Promise.resolve(loadingPromise);
-          }
-          loadingPromise
-            .then((list) => {
-              let nodeList = [];
-              list.forEach((item) => {
-                nodeList.push(this.conversionMethod(item));
-              });
-              if (this.multiple) {
-                this.currentValue = nodeList;
-              } else {
-                this.currentValue = nodeList[0];
-              }
-
-              resolve(this.currentValue);
-            })
-            .catch((error) => {
-              this.$opensilex.errorHandler(error);
-              reject(error);
-            });
+          resolve(this.currentValue);
         }
-      } else if (this.searchMethod) {
-        resolve(this.selectedNodes);
       } else {
-        let currentOptions = this.options || this.internalOption;
-        if (this.multiple) {
-          if (this.selection && this.selection.length > 0) {
-            let items = this.findListInTree(currentOptions, this.selection);
-            resolve(items);
+        if (this.itemLoadingMethod) {
+          if (!this.selection || this.selection.length == 0) {
+            if (this.multiple) {
+              resolve([]);
+            } else {
+              resolve();
+            }
+          } else if (this.currentValue) {
+            resolve(this.currentValue);
           } else {
-            resolve([]);
+            this.$opensilex.disableLoader();
+            let uris = this.selection;
+            if (!this.multiple) {
+              uris = [this.selection];
+            }
+            let loadingPromise = this.itemLoadingMethod(uris);
+            if (!(loadingPromise instanceof Promise)) {
+              loadingPromise = Promise.resolve(loadingPromise);
+            }
+            loadingPromise
+                .then((list) => {
+                  let nodeList = [];
+                  list.forEach((item) => {
+                    nodeList.push(this.conversionMethod(item));
+                  });
+                  if (this.multiple) {
+                    this.currentValue = nodeList;
+                  } else {
+                    this.currentValue = nodeList[0];
+                  }
+                  resolve(this.currentValue);
+                })
+                .catch((error) => {
+
+                  this.$opensilex.errorHandler(error);
+                  reject(error);
+                });
           }
+        } else if (this.searchMethod) {
+          // If there is a search method but no item loading method, then initial values
+          // cannot be retrieved.
+          console.warn("A search method was specified but no item loading method.")
+          resolve(undefined);
         } else {
-          if (this.selection) {
-            let item = this.findInTree(currentOptions, this.selection);
-            resolve(item);
+          let currentOptions = this.options || this.internalOption;
+          if (this.multiple) {
+            if (this.selection && this.selection.length > 0) {
+              let items = this.findListInTree(currentOptions, this.selection);
+              resolve(items);
+            } else {
+              resolve([]);
+            }
           } else {
-            resolve();
+            if (this.selection) {
+              let item = this.findInTree(currentOptions, this.selection);
+              resolve(item);
+            } else {
+              resolve();
+            }
           }
         }
       }
@@ -406,22 +431,62 @@ export default class SelectForm extends Vue {
     return "";
   }
 
-  select(value) {
-    if (this.multiple) {
-      this.selection.push(value.id);
-    } else {
-      this.selection = value.id;
+ select(value) {
+    if(this.isModalSearch)  {
+      // copy selected items in local variable to wait validate action and then, change the selection
+      this.selectedCopie.push(value);
+    } 
+    else {
+      if (this.multiple) {
+        this.selection.push(value.id);
+      } else {
+        this.selection = value.id;
+      }
+
     }
-    this.$emit("select", value);
+
+    this.$emit("select", value, this.selectedCopie);
   }
 
-  deselect(value) {
-    if (this.multiple) {
-      this.selection = this.selection.filter((id) => id !== value.id);
-    } else {
-      this.selection = null;
+  deselect(item) {
+    if(this.isModalSearch)  {
+      // copy selected items in local variable to wait validate action and then, change the selection
+      this.selectedCopie = this.selectedCopie.filter((value) => value.id !== item.id);
+    } 
+    else {
+      if (this.multiple) {
+        this.selection = this.selection.filter((id) => id !== item.id);
+      } else {
+        this.selection = null;
+      }
     }
-    this.$emit("deselect", value);
+  
+    this.$emit("deselect", item);
+  }
+  
+  onValidate(){
+    
+      if(this.selectedCopie == null || this.selectedCopie.length == 0) {
+        this.loading = false;
+      } else {
+        this.loading = true;
+      }
+      setTimeout(() => { // fix :  time to close the modal .
+        this.selection = this.selectedCopie.map(value => value.id);
+        this.$emit('onValidate', this.selectedCopie);
+      }, 400);
+    
+  }
+  
+  selectall(selectedValues) {
+    
+    if(selectedValues){  
+      // copy selected items in local variable to wait validate action and then, change the selection
+      this.selectedCopie = selectedValues.map((item => this.conversionMethod(item)));
+    }
+    else {
+      this.selectedCopie = null;    
+    }
   }
 
   close(field) {
@@ -466,8 +531,12 @@ export default class SelectForm extends Vue {
             });
             this.internalOption = nodeList;
             if(list.length>0 && this.defaultSelectedValue){
-               this.selection=list[0].uri;
-               this.$emit("select", this.selection);
+              var URISelected = []
+              list.forEach((element, index) => {
+                URISelected.push(element.uri);
+              });
+              this.selection=URISelected;
+              this.$emit("select", this.selection);
             }
             
             callback(null, this.internalOption);
@@ -553,29 +622,9 @@ export default class SelectForm extends Vue {
     };
   }
 
-  selectedNodes;
-
-  setCurrentSelectedNodes(values) {
-    this.selectedNodes = values;
-  }
-
   showModal() {
     let searchModal: any = this.$refs.searchModal;
     searchModal.show();
-  }
-
-  updateValues(selectedValues) {
-    let values = selectedValues.map((item =>
-      this.conversionMethod(item)
-    ));
-
-    for (let i = 0; i < values.length; i++) {
-      this.select(values[i]);
-    }
-  }
-  
-  showDetails() {
-    this.detailVisible != this.detailVisible;
   }
 
   showModalSearch() {
@@ -639,6 +688,10 @@ i.more-results-info {
   margin-left: 10px;
   margin-right: 10px;
 }
+.greenThemeColor {
+  color: #fff
+}
+
 </style>
 
 <i18n>

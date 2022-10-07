@@ -5,30 +5,11 @@
  */
 package org.opensilex.core.scientificObject.dal;
 
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.time.LocalDate;
-import java.time.LocalTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.util.*;
-import java.util.function.Function;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.trie.PatriciaTrie;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.jena.arq.querybuilder.ExprFactory;
-import org.apache.jena.arq.querybuilder.SelectBuilder;
-import org.apache.jena.arq.querybuilder.WhereBuilder;
+import org.apache.jena.arq.querybuilder.*;
+import org.apache.jena.arq.querybuilder.clauses.WhereClause;
 import org.apache.jena.arq.querybuilder.handlers.WhereHandler;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
@@ -41,16 +22,15 @@ import org.apache.jena.sparql.path.Path;
 import org.apache.jena.vocabulary.RDF;
 import org.apache.jena.vocabulary.RDFS;
 import org.opensilex.OpenSilex;
-import org.opensilex.core.event.dal.move.TargetPositionModel;
 import org.opensilex.core.event.dal.move.MoveEventDAO;
 import org.opensilex.core.event.dal.move.MoveModel;
+import org.opensilex.core.event.dal.move.TargetPositionModel;
 import org.opensilex.core.exception.DuplicateNameException;
 import org.opensilex.core.exception.DuplicateNameListException;
+import org.opensilex.core.experiment.dal.ExperimentModel;
 import org.opensilex.core.experiment.factor.dal.FactorLevelModel;
 import org.opensilex.core.ontology.Oeso;
 import org.opensilex.core.ontology.api.RDFObjectRelationDTO;
-import org.opensilex.core.ontology.dal.ClassModel;
-import org.opensilex.core.ontology.dal.OntologyDAO;
 import org.opensilex.core.ontology.dal.SPARQLRelationFetcher;
 import org.opensilex.core.organisation.dal.InfrastructureFacilityModel;
 import org.opensilex.core.scientificObject.api.ScientificObjectNodeDTO;
@@ -58,18 +38,20 @@ import org.opensilex.core.scientificObject.api.ScientificObjectNodeWithChildrenD
 import org.opensilex.nosql.mongodb.MongoDBService;
 import org.opensilex.security.user.dal.UserModel;
 import org.opensilex.server.exceptions.InvalidValueException;
-import org.opensilex.server.response.ListItemDTO;
+import org.opensilex.sparql.SPARQLModule;
 import org.opensilex.sparql.deserializer.DateDeserializer;
 import org.opensilex.sparql.deserializer.SPARQLDeserializer;
 import org.opensilex.sparql.deserializer.SPARQLDeserializers;
+import org.opensilex.sparql.deserializer.URIDeserializer;
 import org.opensilex.sparql.exceptions.SPARQLException;
 import org.opensilex.sparql.mapping.SPARQLClassObjectMapper;
 import org.opensilex.sparql.mapping.SPARQLClassObjectMapperIndex;
 import org.opensilex.sparql.mapping.SPARQLListFetcher;
 import org.opensilex.sparql.model.*;
 import org.opensilex.sparql.model.time.InstantModel;
+import org.opensilex.sparql.ontology.dal.ClassModel;
+import org.opensilex.sparql.ontology.dal.OntologyDAO;
 import org.opensilex.sparql.service.SPARQLQueryHelper;
-import static org.opensilex.sparql.service.SPARQLQueryHelper.makeVar;
 import org.opensilex.sparql.service.SPARQLResult;
 import org.opensilex.sparql.service.SPARQLService;
 import org.opensilex.sparql.utils.Ontology;
@@ -77,6 +59,19 @@ import org.opensilex.utils.ListWithPagination;
 import org.opensilex.utils.OrderBy;
 import org.opensilex.utils.ThrowingConsumer;
 import org.opensilex.utils.ThrowingFunction;
+
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static org.opensilex.sparql.service.SPARQLQueryHelper.makeVar;
 
 /**
  *
@@ -91,14 +86,17 @@ public class ScientificObjectDAO {
     public static final String NON_UNIQUE_NAME_INTO_GRAPH_ERROR_MSG = "Object name <%s> must be unique onto the graph <%s>. %s has the same name";
     public static final String NON_UNIQUE_NAME_ERROR_MSG = "Object name <%s> must be unique. %s has the same name";
 
-    private final URI defaultGraph;
+    private final URI defaultGraphURI;
+    private final Node defaultGraphNode;
+
 
     public ScientificObjectDAO(SPARQLService sparql, MongoDBService nosql) {
         this.sparql = sparql;
         this.nosql = nosql;
 
         try{
-            defaultGraph = sparql.getDefaultGraphURI(ScientificObjectModel.class);
+            defaultGraphURI = sparql.getDefaultGraphURI(ScientificObjectModel.class);
+            defaultGraphNode = sparql.getDefaultGraph(ScientificObjectModel.class);
         }catch (SPARQLException e){
             throw new RuntimeException(e);
         }
@@ -131,7 +129,11 @@ public class ScientificObjectDAO {
 
     public ListWithPagination<ScientificObjectNodeWithChildrenDTO> searchChildren(ScientificObjectSearchFilter searchFilter) throws Exception {
 
-        searchFilter.setOnlyFetchOsWithNoParent(true);
+        if(!searchFilter.getRdfTypes().isEmpty() || !searchFilter.getFactorLevels().isEmpty() || !searchFilter.getPattern().isEmpty() && !searchFilter.getPattern().equals(".*") || searchFilter.getFacility() != null) {
+            searchFilter.setOnlyFetchOsWithNoParent(false);
+        } else {
+            searchFilter.setOnlyFetchOsWithNoParent(true);
+        }
 
         ListWithPagination<ScientificObjectNodeDTO> results = searchAsDto(searchFilter);
         if(results.getList().isEmpty()){
@@ -290,6 +292,11 @@ public class ScientificObjectDAO {
             return new ListWithPagination<>(Collections.emptyList());
         }
 
+        // set default ORDER BY ?uri. Needed if we use multi-valued properties fetching
+        if(CollectionUtils.isEmpty(searchFilter.getOrderByList())){
+            searchFilter.setOrderByList(Collections.singletonList(SPARQLClassObjectMapper.DEFAULT_ORDER_BY));
+        }
+
         SelectBuilder select = getSelect(searchFilter);
         Stream<SPARQLResult> resultStream = sparql.executeSelectQueryAsStream(select);
 
@@ -444,7 +451,7 @@ public class ScientificObjectDAO {
         optionalTypeLabelHandler.addWhere(builder.makeTriplePath(typeVar, RDFS.label, typeNameVar));
         // Add rdf type label lang filter
         Locale locale = Locale.forLanguageTag(searchFilter.getLang());
-        optionalTypeLabelHandler.addFilter(SPARQLQueryHelper.langFilter(SPARQLResourceModel.TYPE_NAME_FIELD, locale.getLanguage()));
+        optionalTypeLabelHandler.addFilter(SPARQLQueryHelper.langFilterWithDefault(SPARQLResourceModel.TYPE_NAME_FIELD, locale.getLanguage()));
         builder.getWhereHandler().addOptional(optionalTypeLabelHandler);
 
         // Add creation and destruction date as optional fields
@@ -536,15 +543,15 @@ public class ScientificObjectDAO {
             Path subPartOf = new P_ZeroOrMore1(new P_Link(Oeso.isPartOf.asNode()));
             if (searchFilter.getExperiment() != null) {
                 WhereBuilder graphQuery = new WhereBuilder();
-                graphQuery.addGraph(contextNode, uriVar, Oeso.hasFacility, directFacility);
+                graphQuery.addGraph(contextNode, uriVar, Oeso.isHosted, directFacility);
                 graphQuery.addGraph(contextNode, uriVar, subPartOf, parentLinkURI);
-                graphQuery.addGraph(contextNode, parentLinkURI, Oeso.hasFacility, parentFacility);
+                graphQuery.addGraph(contextNode, parentLinkURI, Oeso.isHosted, parentFacility);
                 builder.addOptional(graphQuery);
             } else {
                 WhereBuilder graphQuery = new WhereBuilder();
-                graphQuery.addWhere(uriVar, Oeso.hasFacility, directFacility);
+                graphQuery.addWhere(uriVar, Oeso.isHosted, directFacility);
                 graphQuery.addWhere(uriVar, subPartOf, parentLinkURI);
-                graphQuery.addWhere(parentLinkURI, Oeso.hasFacility, parentFacility);
+                graphQuery.addWhere(parentLinkURI, Oeso.isHosted, parentFacility);
                 builder.addOptional(graphQuery);
             }
 
@@ -585,10 +592,10 @@ public class ScientificObjectDAO {
      * @throws SPARQLException if some Exception is encountered during SPARQL query execution
      * @throws DuplicateNameException if an object with the same name already exists into objectGraph graph.
      */
-    private void checkUniqueNameByGraph(URI objectGraph, String objectName, URI objectUri, boolean create) throws DuplicateNameException, SPARQLException {
+    public void checkUniqueNameByGraph(URI objectGraph, String objectName, URI objectUri, boolean create) throws DuplicateNameException, SPARQLException {
 
         // unique name restriction only apply on some experiment graph
-        if(SPARQLDeserializers.compareURIs(objectGraph, defaultGraph)){
+        if(SPARQLDeserializers.compareURIs(objectGraph, defaultGraphURI)){
             return;
         }
 
@@ -608,8 +615,25 @@ public class ScientificObjectDAO {
         }
     }
 
+    private void checkLocalDuplicates(List<ScientificObjectModel> models) throws DuplicateNameListException{
+
+        Set<String> uniquesNames = new HashSet<>();
+
+        Map<String,URI> localDuplicatesByUri = new HashMap<>();
+        models.forEach(model -> {
+            // if name already exist, then register it as a duplicate name
+            if(! uniquesNames.add(model.getName())){
+                localDuplicatesByUri.put(model.getName(),model.getUri());
+            }
+        });
+
+        if(!localDuplicatesByUri.isEmpty()){
+            throw new DuplicateNameListException(localDuplicatesByUri);
+        }
+    }
+
     /**
-     * Check into objectGraph if it exist any object with a name corresponding with a name from objects, throw {@link DuplicateNameListException} if so
+     * Check into objectGraph if it exists any object with a name corresponding with a name from objects, throw {@link DuplicateNameListException} if so
      *
      * @param objects objects to check (need to have a non-null {@link SPARQLNamedResourceModel#getName()}
      * @param objectGraph graph into checking of duplicate name is done
@@ -617,19 +641,31 @@ public class ScientificObjectDAO {
      * @throws DuplicateNameListException if at least one object from objects use a {@link SPARQLNamedResourceModel#getName()} already used by another object into objectGraph.
      * The exception has the {@link DuplicateNameListException#getExistingUriByName()} method which return association between existing name and uri.
      * @throws SPARQLException If some error is encountered during SPARQL query execution
+     * @throws IllegalArgumentException if objects is null or empty or if objectGraph is null
      */
-    public void checkUniqueNameByGraph(List<SPARQLNamedResourceModel> objects, URI objectGraph) throws DuplicateNameListException, SPARQLException {
+    public void checkUniqueNameByGraph(List<ScientificObjectModel> objects, URI objectGraph) throws DuplicateNameListException, SPARQLException {
 
-        Objects.requireNonNull(objects);
+
         Objects.requireNonNull(objectGraph);
 
-//        URI formattedGraphUri = SPARQLDeserializers.formatURI()
+        // unique name restriction only apply on some experiment graph
+        if(SPARQLDeserializers.compareURIs(objectGraph, defaultGraphURI)){
+            return;
+        }
+
+        if(CollectionUtils.isEmpty(objects)){
+            throw new IllegalArgumentException("objects is null or empty");
+        }
+
+        checkLocalDuplicates(objects);
+
         Var uriVar = makeVar(SPARQLResourceModel.URI_FIELD);
         Var nameVar = makeVar(SPARQLNamedResourceModel.NAME_FIELD);
         Var typeVar = makeVar(SPARQLResourceModel.TYPE_FIELD);
 
         Node graphNode = NodeFactory.createURI(SPARQLDeserializers.getExpandedURI(objectGraph.toString()));
-        Stream<String> objectNames =  objects.stream().map(SPARQLNamedResourceModel::getName);
+
+        Stream<String> objectNames = objects.stream().map(SPARQLNamedResourceModel::getName);
 
         // create graph clause
         WhereBuilder graphWhere = new WhereBuilder()
@@ -667,10 +703,29 @@ public class ScientificObjectDAO {
 
     }
 
+    public void create(List<ScientificObjectModel> models, URI contextURI) throws Exception {
+
+        Objects.requireNonNull(contextURI);
+
+        boolean useDefaultGraph = SPARQLDeserializers.compareURIs(defaultGraphNode.getURI(),contextURI);
+        Node graphNode = useDefaultGraph ? defaultGraphNode : SPARQLDeserializers.nodeURI(contextURI);
+
+        for(ScientificObjectModel model : models){
+
+            // experimental context + no URI set
+            if(! useDefaultGraph && model.getUri() == null) {
+
+                // generate a globally unique URI
+                // (by taking account of all OS into global graph, which also includes OS from any xp)
+                sparql.generateUniqueURI(defaultGraphNode, model, model, true);
+            }
+            sparql.create(graphNode,model);
+        }
+    }
+
     /**
      *
      * @param contextURI object graph
-     * @param uriGenerationPrefix uri prefix
      * @param soType object type
      * @param objectURI object uri
      * @param name object name
@@ -679,37 +734,42 @@ public class ScientificObjectDAO {
      * @return the URI of the created object
      * @throws DuplicateNameException if some object with the same name exist into the given graph
      */
-    public URI create(URI contextURI, URI uriGenerationPrefix, URI soType, URI objectURI, String name, List<RDFObjectRelationDTO> relations, UserModel currentUser) throws DuplicateNameException, Exception {
+    public ScientificObjectModel create(URI contextURI, ExperimentModel experiment, URI soType, URI objectURI, String name, List<RDFObjectRelationDTO> relations, UserModel currentUser) throws DuplicateNameException, Exception {
+        Objects.requireNonNull(contextURI);
 
         checkUniqueNameByGraph(contextURI,name,null,true);
 
         Node graphNode = SPARQLDeserializers.nodeURI(contextURI);
 
-        if (objectURI == null) {
-            ScientificObjectURIGenerator uriGenerator = new ScientificObjectURIGenerator(uriGenerationPrefix);
-            int retry = 0;
-            objectURI = uriGenerator.generateURI(contextURI.toString(), name, retry);
-            while (sparql.uriExists(graphNode, objectURI)) {
-                retry++;
-                objectURI = uriGenerator.generateURI(contextURI.toString(), name, retry);
-            }
-        }
-
-        ScientificObjectModel object = initObject(contextURI, soType, name, relations, currentUser);
+        ScientificObjectModel object = initObject(contextURI, experiment, soType, name, relations, currentUser);
         object.setUri(objectURI);
 
         try {
             sparql.startTransaction();
             nosql.startTransaction();
+
+            // experimental context + no URI set
+            if(! SPARQLDeserializers.compareURIs(defaultGraphNode.getURI(),contextURI) && objectURI == null) {
+
+                // generate a globally unique URI
+                // (by taking account of all OS into global graph, which also includes OS from any xp)
+                sparql.generateUniqueURI(defaultGraphNode, object, object, true);
+            }
+
+            // if URI is already set, the service will check that URI is unique inside the provided graph
+            // if the graph is global : check if OS is unique inside global graph
+            // if the graph is an experiment : check if OS is unique inside experiment graph
+
+            // if the graph is an experiment and the OS already exist into global graph -> OK, since here we consider
+            // that we reuse this OS inside the experiment, so no need to performs additional checking
             sparql.create(graphNode, object);
-            objectURI = object.getUri();
 
             MoveEventDAO moveDAO = new MoveEventDAO(sparql, nosql);
             MoveModel facilityMoveEvent = new MoveModel();
             if (fillFacilityMoveEvent(facilityMoveEvent, object)) {
                 moveDAO.create(facilityMoveEvent);
             }
-            sparql.deletePrimitives(SPARQLDeserializers.nodeURI(contextURI), object.getUri(), Oeso.hasFacility);
+            sparql.deletePrimitives(SPARQLDeserializers.nodeURI(contextURI), object.getUri(), Oeso.isHosted);
             nosql.commitTransaction();
             sparql.commitTransaction();
         } catch (Exception ex) {
@@ -717,7 +777,7 @@ public class ScientificObjectDAO {
             sparql.rollbackTransaction(ex);
         }
 
-        return objectURI;
+        return object;
     }
 
     public static boolean fillFacilityMoveEvent(MoveModel facilityMoveEvent, SPARQLResourceModel object) throws Exception {
@@ -731,7 +791,7 @@ public class ScientificObjectDAO {
 
         boolean hasFacility = false;
         for (SPARQLModelRelation relation : object.getRelations()) {
-            if (SPARQLDeserializers.compareURIs(relation.getProperty().getURI(), Oeso.hasFacility.getURI())) {
+            if (SPARQLDeserializers.compareURIs(relation.getProperty().getURI(), Oeso.isHosted.getURI())) {
                 InfrastructureFacilityModel infraModel = new InfrastructureFacilityModel();
                 infraModel.setUri(new URI(relation.getValue()));
                 facilityMoveEvent.setTo(infraModel);
@@ -774,7 +834,7 @@ public class ScientificObjectDAO {
 
         checkUniqueNameByGraph(contextURI,name,objectURI,false);
 
-        SPARQLResourceModel object = initObject(contextURI, soType, name, relations, currentUser);
+        SPARQLResourceModel object = initObject(contextURI, null, soType, name, relations, currentUser);
         object.setUri(objectURI);
 
         Node graphNode = SPARQLDeserializers.nodeURI(contextURI);
@@ -789,7 +849,7 @@ public class ScientificObjectDAO {
 
         boolean hasFacilityURI = false;
         for (SPARQLModelRelation relation : object.getRelations()) {
-            if (SPARQLDeserializers.compareURIs(relation.getProperty().getURI(), Oeso.hasFacility.getURI())) {
+            if (SPARQLDeserializers.compareURIs(relation.getProperty().getURI(), Oeso.isHosted.getURI())) {
                 hasFacilityURI = true;
                 break;
             }
@@ -843,7 +903,7 @@ public class ScientificObjectDAO {
                     }
                 }
             }
-            sparql.deletePrimitives(graphNode, objectURI, Oeso.hasFacility);
+            sparql.deletePrimitives(graphNode, objectURI, Oeso.isHosted);
 
             sparql.commitTransaction();
             nosql.commitTransaction();
@@ -856,22 +916,22 @@ public class ScientificObjectDAO {
         return object.getUri();
     }
 
-    private ScientificObjectModel initObject(URI contextURI, URI soType, String name, List<RDFObjectRelationDTO> relations, UserModel currentUser) throws Exception {
+    private ScientificObjectModel initObject(URI contextURI, ExperimentModel xp, URI soType, String name, List<RDFObjectRelationDTO> relations, UserModel currentUser) throws Exception {
         OntologyDAO ontologyDAO = new OntologyDAO(sparql);
         ClassModel model = ontologyDAO.getClassModel(soType, new URI(Oeso.ScientificObject.getURI()), currentUser.getLanguage());
 
         ScientificObjectModel object = new ScientificObjectModel();
         object.setType(soType);
+        object.setName(name);
 
         if (relations != null) {
             for (RDFObjectRelationDTO relation : relations) {
-                if (!ontologyDAO.validateObjectValue(contextURI, model, relation.getProperty(), relation.getValue(), object)) {
+                URI propertyShortURI = new URI(SPARQLDeserializers.getShortURI(relation.getProperty()));
+                if (!ontologyDAO.validateObjectValue(contextURI, model, propertyShortURI, relation.getValue(), object)) {
                     throw new InvalidValueException("Invalid relation value for " + relation.getProperty().toString() + " => " + relation.getValue());
                 }
             }
         }
-
-        object.addRelation(contextURI, new URI(RDFS.label.getURI()), String.class, name);
 
         return object;
     }
@@ -899,8 +959,100 @@ public class ScientificObjectDAO {
         return resultList;
     }
 
+    /**
+     *
+     * @param objects URIs of the scientific object to check
+     * @param nbObject number of scientific object (used to pass to {@link SPARQLQueryHelper#addWhereUriValues(WhereClause, String, Stream, int)}
+     * @return true if any of the object from objects are involved into any experiment, false else
+     * @throws SPARQLException if SPARQL query evaluation fail
+     *
+     * @apiNote Example of generated SPARQL query
+     *
+     * <pre>
+     * ASK WHERE {
+     *      ?type rdfs:subClassOf* vocabulary:ScientificObject
+     *      GRAPH ?graph {
+     *          ?uri a ?type.
+     *      }
+     *      FILTER (?graph != <http://www.phenome-fppn.fr/set/scientific-object>)
+     *      VALUES ?uri {  test:so1 test:so2  }
+     * }
+     * </pre>
+     *
+     */
+    public boolean isInvolvedIntoAnyExperiment(Stream<URI> objects, int nbObject) throws SPARQLException {
+
+        Var uriVar = makeVar("uri");
+        Var graphVar = makeVar("graph");
+        Var typeVar = makeVar("type");
+
+        ExprFactory exprFactory = SPARQLQueryHelper.getExprFactory();
+
+        AskBuilder ask = new AskBuilder()
+                .addWhere(typeVar, Ontology.subClassAny, Oeso.ScientificObject)
+                .addGraph(graphVar, uriVar, RDF.type, typeVar)
+                .addFilter(exprFactory.not(exprFactory.eq(graphVar, defaultGraphNode)));
+
+        SPARQLQueryHelper.addWhereUriValues(ask, uriVar.getVarName(), objects, nbObject);
+        return sparql.executeAskQuery(ask);
+    }
+
+    /**
+     *
+     * @param graph URI of the experiment in which we search if objects have children. Must not be null, since objects relations (except name and type) are only
+     * handled into experimental context
+     * @param objects URIs of the scientific object to check
+     * @param nbObject number of scientific object (used to pass to {@link SPARQLQueryHelper#addWhereUriValues(WhereClause, String, Stream, int)}
+     * @return true if any of the object from objects are involved has a children, false else
+     * @throws SPARQLException if SPARQL query evaluation fail
+     * @throws IllegalArgumentException if graph is null
+     * @apiNote Example of generated SPARQL query
+     *
+     * <pre>
+     * ASK WHERE {
+     *      ?type rdfs:subClassOf* vocabulary:ScientificObject
+     *      GRAPH test:experiment_graph {
+     *          ?uri a ?type.
+     *          ?children vocabulary:isPartOf ?uri
+     *      }
+     *      VALUES ?uri {  test:so1 test:so2  }
+     * }
+     * </pre>
+     *
+     */
+    public boolean hasChildren(URI graph, Stream<URI> objects, int nbObject) throws SPARQLException {
+
+        Objects.requireNonNull(graph);
+
+        Var uriVar = makeVar("uri");
+        Node graphNode = NodeFactory.createURI(URIDeserializer.getExpandedURI(graph.toString()));
+        Var typeVar = makeVar("type");
+        Var childVar = makeVar("children");
+
+        AskBuilder ask = new AskBuilder()
+                .addWhere(typeVar, Ontology.subClassAny, Oeso.ScientificObject)
+                .addGraph(graphNode, new WhereBuilder()
+                        .addWhere(uriVar, RDF.type, typeVar)
+                        .addWhere(childVar, Oeso.isPartOf, uriVar));
+
+        SPARQLQueryHelper.addWhereUriValues(ask, uriVar.getVarName(), objects, nbObject);
+        return sparql.executeAskQuery(ask);
+    }
+
+    /**
+     * Remove an OS from a graph
+     * @param xpURI URI of the experiment in which the object is located. If null then the objectURI is deleted from the global os graph
+     * @param objectURI URI of the object to delete
+     * @throws Exception if some error is encountered during suppression of the object from the triplestore
+     * @throws IllegalArgumentException if objectURI is null
+     */
     public void delete(URI xpURI, URI objectURI) throws Exception {
-        sparql.deleteByURI(SPARQLDeserializers.nodeURI(xpURI), objectURI);
+        Objects.requireNonNull(objectURI);
+        if(xpURI == null){
+            sparql.deleteByURI(defaultGraphNode,objectURI);
+        }else{
+            sparql.deleteByURI(SPARQLDeserializers.nodeURI(xpURI), objectURI);
+        }
     }
 
     /**

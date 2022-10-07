@@ -4,6 +4,7 @@
       icon="fa#seedling"
       :title="provenance.name"
       description="ProvenanceDetailsPage.title"
+      class="detail-element-header"
     ></opensilex-PageHeader>
 
     <opensilex-PageActions :tabs=true :returnButton="true">
@@ -33,11 +34,11 @@
           <opensilex-Card label="component.common.description" icon="ik#ik-clipboard">
             <template v-slot:rightHeader>              
               <opensilex-EditButton
-                v-if="user.hasCredential(credentials.CREDENTIAL_DATA_DELETE_ID)"
+                v-if="user.hasCredential(credentials.CREDENTIAL_PROVENANCE_MODIFICATION_ID)"
                 @click="showEditForm"
               ></opensilex-EditButton>
               <opensilex-DeleteButton
-                v-if="user.hasCredential(credentials.CREDENTIAL_DATA_DELETE_ID)"
+                v-if="user.hasCredential(credentials.CREDENTIAL_PROVENANCE_DELETE_ID)"
                 @click="deleteProvenance"
               ></opensilex-DeleteButton>
             </template>
@@ -100,11 +101,12 @@
                   <opensilex-UriLink v-if="$opensilex.Oeso.checkURIs($opensilex.Oeso.OPERATOR_TYPE_URI, data.item.rdf_type)"
                     :uri="data.item.uri"
                     :value="data.item.name"
-                    :to="{path: '/device/details/'+ encodeURIComponent(data.item.uri)}"
+                    :to="{path: '/users?filter='+ encodeURIComponent(data.item.last_name)}"
                   ></opensilex-UriLink>
                   <opensilex-UriLink v-else
                     :uri="data.item.uri"
                     :value="data.item.name"
+                    :to="{path: '/device/details/'+ encodeURIComponent(data.item.uri)}"
                   ></opensilex-UriLink>
                 </template>
                 
@@ -118,7 +120,7 @@
         v-else-if="isDocumentTab()"
         ref="documentTabList"
         :uri="uri"        
-        :modificationCredentialId="credentials.CREDENTIAL_GERMPLASM_MODIFICATION_ID"
+        :modificationCredentialId="credentials.CREDENTIAL_DOCUMENT_MODIFICATION_ID"
       ></opensilex-DocumentTabList>
 
       <opensilex-AnnotationList
@@ -127,8 +129,8 @@
       :target="uri"
       :displayTargetColumn="false"
       :enableActions="true"
-      :modificationCredentialId="credentials.CREDENTIAL_GERMPLASM_MODIFICATION_ID"
-      :deleteCredentialId="credentials.CREDENTIAL_GERMPLASM_DELETE_ID"
+      :modificationCredentialId="credentials.CREDENTIAL_ANNOTATION_MODIFICATION_ID"
+      :deleteCredentialId="credentials.CREDENTIAL_ANNOTATION_DELETE_ID"
       ></opensilex-AnnotationList>
       
     </opensilex-PageContent>   
@@ -156,7 +158,7 @@ import {
 import HttpResponse, { OpenSilexResponse } from "../../lib/HttpResponse";
 import AnnotationList from "../annotations/list/AnnotationList.vue";
 import DocumentTabList from "../documents/DocumentTabList.vue";
-import { UserGetDTO } from "opensilex-security/model/userGetDTO";
+import { UserGetDTO } from 'opensilex-security/index';
 
 
 @Component
@@ -239,6 +241,7 @@ export default class ProvenanceDetailsPage extends Vue {
               .getUser(prov.prov_agent[i].uri)
               .then((http: HttpResponse<OpenSilexResponse<UserGetDTO>>) => {
                 prov.prov_agent[i]["name"] = http.response.result.first_name + " " + http.response.result.last_name;
+                prov.prov_agent[i]["last_name"] = http.response.result.last_name;
               })
               .catch(this.$opensilex.errorHandler);
             } else {
@@ -309,7 +312,9 @@ export default class ProvenanceDetailsPage extends Vue {
     return form;
   }
 
+
   deleteProvenance() {
+    
     this.service
       .deleteProvenance(this.provenance.uri)
       .then(() => {
@@ -321,12 +326,20 @@ export default class ProvenanceDetailsPage extends Vue {
           this.$i18n.t("component.common.success.delete-success-message");
         this.$opensilex.showSuccessToast(message);
         this.$router.push({
-            path: "/provenances"
-          });
+          path: "/provenances",
+        });
       })
-      .catch(this.$opensilex.errorHandler);
+      .catch((error) => {
+        if (error.response.result.message) {
+          this.$opensilex.errorHandler(error, error.response.result.message);
+        } else {
+          this.$opensilex.errorHandler(error);
+        }
+      });
+
   }
 
+  
   tableFields = [
     {
       key: "name",

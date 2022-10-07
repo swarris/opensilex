@@ -4,6 +4,7 @@
       icon="ik#ik-file-text"
       :title="document.title"
       description="DocumentDetails.title"
+      class="detail-element-header"
     ></opensilex-PageHeader>
 
     <opensilex-PageActions :returnButton="true" >   
@@ -68,6 +69,11 @@
                   :to="{path: '/germplasm/details/'+ encodeURIComponent(target.uri)}"
                 ></opensilex-UriLink>
                 <opensilex-UriLink 
+                  :uri="target.uri" 
+                  v-else-if="target.rdf_types.includes($opensilex.Oeso.VARIABLESGROUP_TYPE_URI)"           
+                  :url="getVariableGroupPageUrl(target.uri)"
+                ></opensilex-UriLink>
+                <opensilex-UriLink 
                   :uri="target.uri"  
                   :value="target.uri"  
                   v-else  
@@ -82,17 +88,27 @@
               <opensilex-StringView label="DocumentDetails.keywords" :value="document.keywords">
                 <span v-if="document.keywords"><span :key="keywords" v-for="(keywords) in document.keywords">{{ keywords }} - </span></span>
               </opensilex-StringView>
+              <opensilex-UriView
+                  v-if="document.source"
+                  title="DocumentDetails.source"
+                  :url="document.source"
+                  :value="document.source"
+              ></opensilex-UriView>
             </template>
           </opensilex-Card>
       </b-col>
 
       <b-col sm="5">
-        <opensilex-Card label="DocumentDetails.file" icon="ik#ik-download">
+        <opensilex-Card
+            label="DocumentDetails.file"
+            icon="ik#ik-download"
+            v-if="hasFile"
+        >
             <template v-slot:body>
               <div class="button-zone">
               <b-button 
                 @click="previewFile(document.uri, document.title, document.format)"
-              >{{ $t("DocumentDetails.preview") }}</b-button> 
+              >{{ $t("DocumentDetails.preview") }}</b-button> &nbsp;
               <b-button 
                 @click="loadFile(document.uri, document.title, document.format)"
               >{{ $t("DocumentDetails.download") }}</b-button> 
@@ -160,16 +176,26 @@ export default class DocumentDetails extends Vue {
           language: null,
           format: null,
           deprecated: null,
-          keywords: null
+          keywords: null,
+          source: null
       };
   
   targetsTypes = [];
+
+  get hasFile() {
+    return !this.document.source;
+  }
 
   created() {
     this.service = this.$opensilex.getService("opensilex.DocumentsService");
     this.uri = decodeURIComponent(this.$route.params.uri);   
     this.loadDocument(this.uri);
 
+  }
+  
+  getVariableGroupPageUrl(uri: string): string {
+    let shortUri = this.$opensilex.getShortUri(uri);   
+    return this.$opensilex.getURL("variables/?elementType=VariableGroup&selected=" + encodeURIComponent(shortUri));
   }
 
   loadDocument(uri: string) {
@@ -229,7 +255,7 @@ export default class DocumentDetails extends Vue {
   
   loadTargetsTypes() {
     let ontologyService = this.$opensilex.getService("opensilex.OntologyService");
-    let types = new Array(Oeso.GERMPLASM_TYPE_URI, Oeso.DEVICE_TYPE_URI, Oeso.PROJECT_TYPE_URI, Oeso.EXPERIMENT_TYPE_URI);
+    let types = new Array(Oeso.GERMPLASM_TYPE_URI, Oeso.DEVICE_TYPE_URI, Oeso.PROJECT_TYPE_URI, Oeso.EXPERIMENT_TYPE_URI, Oeso.VARIABLESGROUP_TYPE_URI);
     let body = {
       uris: this.document.targets
     }
@@ -270,6 +296,7 @@ en:
     preview: Preview File
     update: Update Document
     delete: Delete Document
+    source: Source
 
 fr:
   DocumentDetails:
@@ -293,4 +320,5 @@ fr:
     preview: Aperçu du fichier
     update: Modifier Document
     delete: Supprimer Document
+    source: Source
 </i18n>

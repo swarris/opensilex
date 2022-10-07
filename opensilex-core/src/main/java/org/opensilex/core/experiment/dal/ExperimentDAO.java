@@ -8,43 +8,50 @@ package org.opensilex.core.experiment.dal;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.jena.arq.querybuilder.ExprFactory;
-import org.apache.jena.arq.querybuilder.SelectBuilder;
-import org.apache.jena.arq.querybuilder.WhereBuilder;
+import org.apache.jena.arq.querybuilder.*;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.graph.Triple;
 import org.apache.jena.rdf.model.Property;
 import org.apache.jena.sparql.core.Var;
 import org.apache.jena.sparql.expr.Expr;
+import org.apache.jena.sparql.expr.ExprVar;
+import org.apache.jena.sparql.path.P_Link;
+import org.apache.jena.sparql.path.P_Seq;
+import org.apache.jena.sparql.path.P_ZeroOrMore1;
+import org.apache.jena.sparql.path.Path;
 import org.apache.jena.sparql.syntax.ElementFilter;
 import org.apache.jena.sparql.syntax.ElementGroup;
 import org.apache.jena.sparql.syntax.ElementOptional;
-import org.opensilex.core.ontology.Oeso;
-import org.opensilex.sparql.deserializer.SPARQLDeserializers;
-import org.opensilex.sparql.model.SPARQLResourceModel;
-import org.opensilex.sparql.service.SPARQLQueryHelper;
-import org.opensilex.sparql.service.SPARQLService;
-import org.opensilex.utils.OrderBy;
-import org.opensilex.utils.ListWithPagination;
-
-import java.net.URI;
-import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
-import org.apache.jena.arq.querybuilder.AskBuilder;
 import org.apache.jena.vocabulary.DCTerms;
+import org.apache.jena.vocabulary.RDF;
+import org.apache.jena.vocabulary.RDFS;
 import org.opensilex.core.exception.DuplicateNameException;
+import org.opensilex.core.ontology.Oeso;
 import org.opensilex.core.organisation.dal.InfrastructureDAO;
 import org.opensilex.core.organisation.dal.InfrastructureFacilityModel;
 import org.opensilex.core.organisation.dal.InfrastructureModel;
+import org.opensilex.nosql.mongodb.MongoDBService;
 import org.opensilex.security.authentication.ForbiddenURIAccessException;
 import org.opensilex.security.authentication.NotFoundURIException;
 import org.opensilex.security.authentication.SecurityOntology;
 import org.opensilex.security.user.dal.UserModel;
+import org.opensilex.sparql.deserializer.SPARQLDeserializers;
+import org.opensilex.sparql.exceptions.SPARQLException;
+import org.opensilex.sparql.model.SPARQLResourceModel;
+import org.opensilex.sparql.service.SPARQLQueryHelper;
+import org.opensilex.sparql.service.SPARQLService;
+import org.opensilex.sparql.utils.Ontology;
+import org.opensilex.utils.ListWithPagination;
+import org.opensilex.utils.OrderBy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.net.URI;
+import java.time.LocalDate;
+import java.util.*;
+import java.util.stream.Collectors;
+
 import static org.opensilex.sparql.service.SPARQLQueryHelper.makeVar;
 
 /**
@@ -54,9 +61,13 @@ import static org.opensilex.sparql.service.SPARQLQueryHelper.makeVar;
 public class ExperimentDAO {
 
     protected final SPARQLService sparql;
+    protected final MongoDBService nosql;
 
-    public ExperimentDAO(SPARQLService sparql) {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ExperimentDAO.class);
+
+    public ExperimentDAO(SPARQLService sparql, MongoDBService nosql) {
         this.sparql = sparql;
+        this.nosql = nosql;
     }
 
     public ExperimentModel create(ExperimentModel instance) throws Exception {
@@ -208,17 +219,19 @@ public class ExperimentDAO {
             Var factors = makeVar(ExperimentModel.FACTORS_FIELD);
             Var xpUri = makeVar(ExperimentModel.URI_FIELD);
             Var category = makeVar(ExperimentModel.FACTORS_CATEGORIES_FIELD);
+            Var categories = makeVar("_categories");
 
             select.addWhere(factors, Oeso.studiedEffectIn,xpUri );
             select.addOptional(xpUri, Oeso.studyEffectOf, factors);
-            select.addWhere(factors, Oeso.hasCategory, category);
+            select.addWhere(categories, Ontology.subClassAny, category);
+            select.addWhere(factors, Oeso.hasCategory, categories);
             select.addFilter(SPARQLQueryHelper.inURIFilter(category, factorCategories));
         }
     }
 
     private void appendRegexLabelFilter(SelectBuilder select, String name) {
         if (!StringUtils.isEmpty(name)) {
-            select.addFilter(SPARQLQueryHelper.regexFilter(ExperimentModel.LABEL_FIELD, name));
+            select.addFilter(SPARQLQueryHelper.regexFilter(ExperimentModel.NAME_FIELD, name));
         }
     }
 
@@ -332,6 +345,29 @@ public class ExperimentDAO {
         return userExperiments;
     }
     
+    /**
+     * Get only running experiments available for a selected user
+     * @param user current user
+     * @return List of current experiment that are not ended
+     * @throws Exception 
+     */
+    public Set<URI> getRunningUserExperiments(UserModel user) throws Exception {
+        String lang = user.getLanguage();
+        Set<URI> userExperiments = new HashSet<>(); 
+        
+        List<URI> xps = sparql.searchURIs(ExperimentModel.class, lang, (SelectBuilder select) -> {
+            appendUserExperimentsFilter(select, user); 
+            Var uriVar = makeVar(ExperimentModel.URI_FIELD);
+            Var endDateField = makeVar(ExperimentModel.END_DATE_FIELD);
+            Triple endDateTriple = new Triple(uriVar, Oeso.endDate.asNode(), endDateField);
+            select.addFilter(SPARQLQueryHelper.getExprFactory().notexists(new WhereBuilder().addWhere(endDateTriple))); 
+        });
+
+        userExperiments.addAll(xps);
+
+        return userExperiments;
+    }
+    
     public static void appendUserExperimentsFilter(SelectBuilder select, UserModel user) throws Exception {
         if (user == null || user.isAdmin()) {
             return;
@@ -433,44 +469,21 @@ public class ExperimentDAO {
         }
     }
 
-    public List<InfrastructureFacilityModel> getFacilities(URI xpUri, UserModel user) throws Exception {
-        validateExperimentAccess(xpUri, user);
-
-        Node xpGraph = SPARQLDeserializers.nodeURI(xpUri);
-
-        List<URI> facilitiesURIs = sparql.searchPrimitives(xpGraph, xpUri, Oeso.hasFacility, URI.class);
-
-        if (facilitiesURIs.size() > 0) {
-            return sparql.search(InfrastructureFacilityModel.class, user.getLanguage(), (select) -> {
-                SPARQLQueryHelper.inURI(select, InfrastructureFacilityModel.URI_FIELD, facilitiesURIs);
-            });
-        } else {
-            return new ArrayList<>();
-        }
-    }
-
     public List<InfrastructureFacilityModel> getAvailableFacilities(URI xpUri, UserModel user) throws Exception {
         validateExperimentAccess(xpUri, user);
 
         ExperimentModel xp = sparql.getByURI(ExperimentModel.class, xpUri, user.getLanguage());
 
-        List<InfrastructureModel> infrastructures = xp.getInfrastructures();
+        Collection<URI> organizationUriFilter = xp.getInfrastructures()
+                .stream().map(SPARQLResourceModel::getUri)
+                .collect(Collectors.toSet());
 
-        if (xp.getInfrastructures().size() == 0) {
-            InfrastructureDAO infraDAO = new InfrastructureDAO(sparql);
-            List<InfrastructureFacilityModel> infrastructuresFacilities = infraDAO.getAllFacilities(user);
-            return infrastructuresFacilities;
+        InfrastructureDAO organizationDAO = new InfrastructureDAO(sparql, nosql);
+
+        if (CollectionUtils.isEmpty(organizationUriFilter)) {
+            return organizationDAO.getAllFacilities(user);
         } else {
-            List<URI> infraURIs = new ArrayList<>();
-            infrastructures.forEach(infra -> {
-                infraURIs.add(infra.getUri());
-            });
-
-            return sparql.search(InfrastructureFacilityModel.class, user.getLanguage(), (select) -> {
-                if (infraURIs.size() > 0) {
-                    SPARQLQueryHelper.inURI(select, InfrastructureFacilityModel.INFRASTRUCTURE_FIELD, infraURIs);
-                }
-            });
+            return organizationDAO.getAllFacilities(user, organizationUriFilter);
         }
     }
 
@@ -484,7 +497,7 @@ public class ExperimentDAO {
             ExperimentModel.class,
             null,
             (SelectBuilder select) -> {
-                select.addFilter(SPARQLQueryHelper.eq(ExperimentModel.LABEL_FIELD, name));
+                appendRegexLabelFilter(select, name);
             },
             null,
             0,
@@ -500,5 +513,113 @@ public class ExperimentDAO {
         }
 
         return results.getList().get(0);
+    }
+
+    /**
+     * Update the experiment species from the germplasms of their scientific objects. Three requests are performed :
+     *
+     * First query (delete) :
+     *
+     * <pre>
+     * delete where {
+     *     graph <../set/experiment> {
+     *         <experimentUri> vocabulary:hasSpecies ?oldSpecies .
+     *     }
+     * }
+     * </pre>
+     *
+     * Second query (insert germplasms that are species) :
+     *
+     * <pre>
+     * insert {
+     *     graph <../set/experiment> {
+     *         <experimentUri> vocabulary:hasSpecies ?germplasm .
+     *     }
+     * } where {
+     *     graph <experimentUri> {
+     *         ?scientificObject a ?rdfType ;
+     *             vocabulary:hasGermplasm ?germplasm;
+     *     }
+     *     ?rdfType rdfs:subClassOf* vocabulary:ScientificObject .
+     *     ?germplasm a/rdfs:subClassOf* vocabulary:Species .
+     * }
+     * </pre>
+     *
+     * Third query (insert species the germplasms derive from) :
+     *
+     * <pre>
+     * insert {
+     *     graph <../set/experiment> {
+     *         <experimentUri> vocabulary:hasSpecies ?newSpecies .
+     *     }
+     * } where {
+     *     graph <experimentUri> {
+     *         ?scientificObject a ?rdfType ;
+     *             vocabulary:hasGermplasm ?germplasm;
+     *     }
+     *     ?rdfType rdfs:subClassOf* vocabulary:ScientificObject .
+     *     ?germplasm vocabulary:fromSpecies ?newSpecies .
+     * }
+     * </pre>
+     *
+     * @param experimentUri
+     * @throws Exception
+     */
+    public void updateExperimentSpeciesFromScientificObjects(URI experimentUri) throws Exception {
+        // Vars
+        Var oldSpeciesVar = makeVar("oldSpecies");
+        Var newSpeciesVar = makeVar("newSpecies");
+        Var scientificObjectVar = makeVar("scientificObject");
+        Var germplasmVar = makeVar("germplasm");
+        Var rdfTypeVar = makeVar("rdfType");
+
+        // Uris
+        Node experimentGraph = SPARQLDeserializers.nodeURI(sparql.getDefaultGraphURI(ExperimentModel.class));
+        Node experimentUriNode = SPARQLDeserializers.nodeURI(experimentUri);
+
+        // Update statement building
+        UpdateBuilder updateDelete = new UpdateBuilder();
+        UpdateBuilder updateInsert1 = new UpdateBuilder();
+        UpdateBuilder updateInsert2 = new UpdateBuilder();
+        updateDelete.addDelete(experimentGraph, experimentUriNode, Oeso.hasSpecies.asNode(), oldSpeciesVar);
+        updateInsert1.addInsert(experimentGraph, experimentUriNode, Oeso.hasSpecies.asNode(), germplasmVar);
+        updateInsert2.addInsert(experimentGraph, experimentUriNode, Oeso.hasSpecies.asNode(), newSpeciesVar);
+
+        // Delete - where
+        WhereBuilder deleteWhere = new WhereBuilder();
+        deleteWhere.addGraph(experimentGraph, experimentUriNode, Oeso.hasSpecies.asNode(), oldSpeciesVar);
+        updateDelete.addWhere(deleteWhere);
+
+        // Insert - where statement building
+        WhereBuilder insertWhere1 = new WhereBuilder();
+        WhereBuilder insertWhere2 = new WhereBuilder();
+
+        // Selection of the scientific object and its germplasm
+        WhereBuilder whereInExperiment = new WhereBuilder();
+        whereInExperiment.addWhere(scientificObjectVar, RDF.type.asNode(), rdfTypeVar);
+        whereInExperiment.addWhere(scientificObjectVar, Oeso.hasGermplasm.asNode(), germplasmVar);
+        insertWhere1.addGraph(experimentUriNode, whereInExperiment);
+        insertWhere1.addWhere(rdfTypeVar, Ontology.subClassAny, Oeso.ScientificObject.asNode());
+        insertWhere2.addGraph(experimentUriNode, whereInExperiment);
+        insertWhere2.addWhere(rdfTypeVar, Ontology.subClassAny, Oeso.ScientificObject.asNode());
+
+        // The two cases for the species
+        insertWhere1.addWhere(germplasmVar, Ontology.typeSubClassAny, Oeso.Species.asNode());
+        insertWhere2.addWhere(germplasmVar, Oeso.fromSpecies.asNode(), newSpeciesVar);
+
+        // Add the where clauses to the queries
+        updateInsert1.addWhere(insertWhere1);
+        updateInsert2.addWhere(insertWhere2);
+
+        sparql.startTransaction();
+        try {
+            sparql.executeUpdateQuery(updateDelete);
+            sparql.executeUpdateQuery(updateInsert1);
+            sparql.executeUpdateQuery(updateInsert2);
+            sparql.commitTransaction();
+        } catch (SPARQLException e) {
+            LOGGER.error("Error while updating species of experiment " + experimentUri, e);
+            sparql.rollbackTransaction();
+        }
     }
 }

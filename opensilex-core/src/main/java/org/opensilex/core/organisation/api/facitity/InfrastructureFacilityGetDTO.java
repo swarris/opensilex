@@ -7,17 +7,20 @@ package org.opensilex.core.organisation.api.facitity;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import io.swagger.annotations.ApiModel;
-import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
-import javax.validation.constraints.NotNull;
-import org.apache.jena.vocabulary.RDFS;
-import org.opensilex.core.ontology.api.RDFObjectDTO;
-import org.opensilex.core.ontology.api.RDFObjectRelationDTO;
+import org.geojson.GeoJsonObject;
+import org.opensilex.core.geospatial.dal.GeospatialDAO;
+import org.opensilex.core.geospatial.dal.GeospatialModel;
 import org.opensilex.core.organisation.dal.InfrastructureFacilityModel;
 import org.opensilex.core.organisation.dal.InfrastructureModel;
-import org.opensilex.sparql.model.SPARQLModelRelation;
+import org.opensilex.core.organisation.dal.SiteModel;
+import org.opensilex.sparql.response.NamedResourceDTO;
+
+import javax.validation.constraints.NotNull;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * DTO representing JSON for getting facility
@@ -25,82 +28,94 @@ import org.opensilex.sparql.model.SPARQLModelRelation;
  * @author vince
  */
 @ApiModel
-@JsonPropertyOrder({"uri", "rdf_type", "rdf_type_name", "name", "organisation"})
-public class InfrastructureFacilityGetDTO extends RDFObjectDTO {
+@JsonPropertyOrder({"uri", "rdf_type", "rdf_type_name", "name", "organizations", "sites", "address", "geometry"})
+public class InfrastructureFacilityGetDTO extends InfrastructureFacilityDTO {
 
-    @JsonProperty("rdf_type_name")
-    protected String typeLabel;
+    @JsonProperty("organizations")
+    protected List<NamedResourceDTO<InfrastructureModel>> infrastructures;
 
-    @JsonProperty("organisation")
-    protected URI infrastructure;
+    @JsonProperty("sites")
+    protected List<NamedResourceDTO<SiteModel>> sites;
 
-    protected String name;
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getTypeLabel() {
-        return typeLabel;
-    }
-
-    public void setTypeLabel(String typeLabel) {
-        this.typeLabel = typeLabel;
-    }
+    @JsonProperty("geometry")
+    protected GeoJsonObject geometry;
 
     @NotNull
-    public URI getInfrastructure() {
-        return infrastructure;
+    public List<NamedResourceDTO<InfrastructureModel>> getInfrastructures() {
+        return infrastructures;
     }
 
-    public void setInfrastructure(URI infrastructure) {
-        this.infrastructure = infrastructure;
+    public void setInfrastructures(List<NamedResourceDTO<InfrastructureModel>> infrastructures) {
+        this.infrastructures = infrastructures;
     }
 
+    public List<NamedResourceDTO<SiteModel>> getSites() {
+        return sites;
+    }
+
+    public void setSites(List<NamedResourceDTO<SiteModel>> sites) {
+        this.sites = sites;
+    }
+
+    public GeoJsonObject getGeometry() {
+        return geometry;
+    }
+
+    public void setGeometry(GeoJsonObject geometry) {
+        this.geometry = geometry;
+    }
+
+    @Override
     public void toModel(InfrastructureFacilityModel model) {
-        model.setUri(getUri());
-        model.setType(getType());
-        model.setName(getName());
-        InfrastructureModel infra = new InfrastructureModel();
-        infra.setUri(getInfrastructure());
-        model.setInfrastructure(infra);
+        super.toModel(model);
+
+        if (getInfrastructures() != null) {
+            List<InfrastructureModel> infrastructureModels = new ArrayList<>();
+            getInfrastructures().forEach(infrastructure -> {
+                InfrastructureModel infrastructureModel = new InfrastructureModel();
+                infrastructureModel.setUri(infrastructure.getUri());
+                infrastructureModels.add(infrastructureModel);
+            });
+            model.setInfrastructures(infrastructureModels);
+        }
+
+        if (getSites() != null) {
+            List<SiteModel> siteModels = new ArrayList<>();
+            getSites().forEach(site -> {
+                SiteModel siteModel = new SiteModel();
+                siteModel.setUri(site.getUri());
+                siteModels.add(siteModel);
+            });
+            model.setSites(siteModels);
+        }
     }
 
     public void fromModel(InfrastructureFacilityModel model) {
-        setUri(model.getUri());
-        setType(model.getType());
-        setTypeLabel(model.getTypeLabel().getDefaultValue());
-        setName(model.getName());
-        if (model != null && model.getInfrastructure() != null) {
-            setInfrastructure(model.getInfrastructure().getUri());
+        super.fromModel(model);
+
+        if (model.getInfrastructures() != null) {
+            setInfrastructures(model.getInfrastructures()
+                    .stream()
+                    .map(infrastructureModel ->
+                            (NamedResourceDTO<InfrastructureModel>)NamedResourceDTO.getDTOFromModel(infrastructureModel))
+                    .collect(Collectors.toList()));
+        }
+
+        if (model.getSites() != null) {
+            setSites(model.getSites().stream()
+                    .map(siteModel -> (NamedResourceDTO<SiteModel>)NamedResourceDTO.getDTOFromModel(siteModel))
+                    .collect(Collectors.toList()));
         }
     }
 
-    public InfrastructureFacilityModel newModel() {
-        InfrastructureFacilityModel instance = new InfrastructureFacilityModel();
-        toModel(instance);
-        
-        return instance;
+    public void fromModelWithGeospatialInfo(InfrastructureFacilityModel facilityModel, GeospatialModel geospatialModel) throws JsonProcessingException {
+        fromModel(facilityModel);
+        fromGeospatialModel(geospatialModel);
     }
 
-    public static InfrastructureFacilityGetDTO getDTOFromModel(InfrastructureFacilityModel model, boolean withDetails) {
-        InfrastructureFacilityGetDTO dto = new InfrastructureFacilityGetDTO();
-        dto.fromModel(model);
-
-        if (withDetails) {
-            List<RDFObjectRelationDTO> relationsDTO = new ArrayList<>();
-
-            for (SPARQLModelRelation relation : model.getRelations()) {
-                relationsDTO.add(RDFObjectRelationDTO.getDTOFromModel(relation));
-            }
-
-            dto.setRelations(relationsDTO);
+    public void fromGeospatialModel(GeospatialModel geospatialModel) throws JsonProcessingException {
+        if (geospatialModel != null) {
+            setGeometry(GeospatialDAO.geometryToGeoJson(geospatialModel.getGeometry()));
         }
-
-        return dto;
     }
 }

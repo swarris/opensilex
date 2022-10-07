@@ -5,9 +5,18 @@
  */
 package org.opensilex.sparql;
 
+import org.opensilex.OpenSilex;
+import org.opensilex.OpenSilexModuleNotFoundException;
+import org.opensilex.sparql.exceptions.SPARQLException;
+import org.opensilex.sparql.ontology.dal.OntologyDAO;
+import org.opensilex.sparql.ontology.store.DefaultOntologyStore;
+import org.opensilex.sparql.ontology.store.NoOntologyStore;
+import org.opensilex.sparql.ontology.store.OntologyStore;
 import org.opensilex.sparql.service.SPARQLService;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
@@ -20,17 +29,26 @@ import org.opensilex.sparql.service.SPARQLServiceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.ws.rs.core.UriBuilder;
+
 /**
  *
  * @author vince
  */
 public class SPARQLModule extends OpenSilexModule {
 
-    private final static String DEFAULT_BASE_URI = "http://default.opensilex.org/";
+    private static final Logger LOGGER = LoggerFactory.getLogger(SPARQLModule.class);
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(SPARQLModule.class);
+    private static final String DEFAULT_BASE_URI = "http://default.opensilex.org/";
+    public static final String ONTOLOGY_BASE_DOMAIN = "http://www.opensilex.org/";
 
-    public final static String ONTOLOGY_BASE_DOMAIN = "http://www.opensilex.org/";
+    private URI baseURI;
+    private String baseURIAlias;
+    private URI generationPrefixURI;
+
+    private final Map<String, URI> customPrefixes = new HashMap<>();
+
+    private static OntologyStore ontologyStore;
 
     @Override
     public Class<?> getConfigClass() {
@@ -42,19 +60,10 @@ public class SPARQLModule extends OpenSilexModule {
         return "ontologies";
     }
 
-    private URI baseURI;
-
-    private String baseURIAlias;
-
-    private URI generationPrefixURI;
-    
-    private SPARQLConfig sparqlConfig;
-
-    private Map<String, URI> customPrefixes = new HashMap<>();
 
     @Override
     public void setup() throws Exception {
-        sparqlConfig = this.getConfig(SPARQLConfig.class);
+        SPARQLConfig sparqlConfig = this.getConfig(SPARQLConfig.class);
         if (sparqlConfig != null) {
             baseURIAlias = sparqlConfig.baseURIAlias() + "-";
             baseURI = new URI(sparqlConfig.baseURI());
@@ -76,13 +85,22 @@ public class SPARQLModule extends OpenSilexModule {
 
         LOGGER.debug("Set platform URI: " + baseURI.toString());
         LOGGER.debug("Set platform URI alias: " + baseURIAlias);
-        if (sparqlConfig != null && !StringUtils.isBlank(sparqlConfig.generationBaseURI())) {
-            generationPrefixURI = new URI(sparqlConfig.generationBaseURI());
-            LOGGER.debug("Set platform base URI for auto-generated URI: " + generationPrefixURI.toString());
-        } else {
-            generationPrefixURI = baseURI;
+
+        generationPrefixURI = baseURI;
+
+        if(sparqlConfig != null){
+            // if some generation URI is provided then use it
+            if(! StringUtils.isEmpty(sparqlConfig.generationBaseURI())){
+                generationPrefixURI = new URI(sparqlConfig.generationBaseURI());
+            }
+            // else generate URI with the provided uri generation alias
+            else  if(!StringUtils.isEmpty(sparqlConfig.generationBaseURIAlias())){
+                // use UriBuilder in order to properly create URI
+                generationPrefixURI = UriBuilder.fromUri(baseURI).path(sparqlConfig.generationBaseURIAlias()).build();
+            }
         }
 
+        LOGGER.debug("Set platform base URI for auto-generated URI: " + generationPrefixURI);
     }
 
     public String getBaseURIAlias() {
@@ -107,47 +125,42 @@ public class SPARQLModule extends OpenSilexModule {
 
     public void installOntologies(SPARQLService sparql, boolean reset) throws Exception {
         // #TODO clean cache
-        try {
-            sparql.disableSHACL();
-            // Allow any module implementing SPARQLExtension to add custom ontologies
-            for (SPARQLExtension module : getOpenSilex().getModulesImplementingInterface(SPARQLExtension.class)) {
-                module.installOntologies(sparql, reset);
-            }
-        } catch (Exception ex) {
-            throw ex;
+        sparql.disableSHACL();
+        // Allow any module implementing SPARQLExtension to add custom ontologies
+        for (SPARQLExtension module : getOpenSilex().getModulesImplementingInterface(SPARQLExtension.class)) {
+            module.installOntologies(sparql, reset);
         }
     }
 
     @Override
     public void install(boolean reset) throws Exception {
-        SPARQLConfig cfg = this.getConfig(SPARQLConfig.class);
-        SPARQLServiceFactory sparql = cfg.sparql();
-        if (reset) {
-            sparql.deleteRepository();
-        }
-        sparql.createRepository();
-        sparql = cfg.sparql();
 
-        SPARQLService sparqlService = sparql.provide();
+        SPARQLConfig sparqlConfig = this.getConfig(SPARQLConfig.class);
+        SPARQLServiceFactory sparqlFactory = sparqlConfig.sparql();
+        if (reset) {
+            sparqlFactory.deleteRepository();
+        }
+        sparqlFactory.createRepository();
+
+        SPARQLService sparqlService = sparqlFactory.provide();
 
         try {
             installOntologies(sparqlService, reset);
 
-            if (cfg.enableSHACL()) {
-                try {
-                    sparqlService.enableSHACL();
-                } catch (SPARQLValidationException ex) {
-                    LOGGER.warn("Error while enable SHACL validation:");
-                    LOGGER.warn(ex.getMessage());
-                }
+            if (sparqlConfig.enableSHACL()) {
+                sparqlService.enableSHACL();
             } else {
                 sparqlService.disableSHACL();
             }
-        } catch (Exception ex) {
-
+        }
+        catch (SPARQLValidationException ex){
+            LOGGER.warn("Error while enable SHACL validation:");
+            LOGGER.warn(ex.getMessage());
+        }
+        catch (Exception ex) {
             LOGGER.error("Error while initializing SHACL", ex);
         } finally {
-            sparql.dispose(sparqlService);
+            sparqlFactory.dispose(sparqlService);
         }
 
     }
@@ -163,6 +176,36 @@ public class SPARQLModule extends OpenSilexModule {
         factory.dispose(sparql);
     }
 
+    private static final String ONTOLOGY_STORE_LOAD_SUCCESS_MSG = "Ontology store loaded with success. Duration: {} ms";
+
+
+    private static void initOntologyStore(OpenSilex openSilex, SPARQLService sparql) throws SPARQLException, OpenSilexModuleNotFoundException {
+
+        if (sparql == null) {
+            return;
+        }
+
+        SPARQLConfig sparqlConfig = openSilex.getModuleConfig(SPARQLModule.class, SPARQLConfig.class);
+
+        // don't load OntologyStore in case of build phase (ex : Swagger or maven) since no real RDF4J connection is set in this case
+        boolean useStore = (! openSilex.isReservedProfile() && ! openSilex.isTest() ) && sparqlConfig.enableOntologyStore();
+        if(useStore){
+            ontologyStore = new DefaultOntologyStore(sparql, openSilex);
+        }else{
+            ontologyStore = new NoOntologyStore(new OntologyDAO(sparql));
+        }
+
+        LOGGER.debug("Using {} OntologyStore implementation", ontologyStore.getClass().getSimpleName());
+        Instant begin = Instant.now();
+        ontologyStore.load();
+        long durationMs = Duration.between(begin, Instant.now()).toMillis();
+        LOGGER.debug(ONTOLOGY_STORE_LOAD_SUCCESS_MSG, durationMs);
+    }
+
+    public static OntologyStore getOntologyStoreInstance(){
+        return ontologyStore;
+    }
+
     @Override
     public void startup() throws Exception {
         SPARQLServiceFactory factory = getOpenSilex().getServiceInstance(SPARQLService.DEFAULT_SPARQL_SERVICE, SPARQLServiceFactory.class);
@@ -171,6 +214,9 @@ public class SPARQLModule extends OpenSilexModule {
                 module.inMemoryInitialization();
             }
         }
+
+        SPARQLService sparql = factory.provide();
+        SPARQLModule.initOntologyStore(getOpenSilex(),sparql);
     }
 
 }

@@ -2,11 +2,12 @@
   <div class="container-fluid">
     <opensilex-PageHeader
       icon="ik#ik-thermometer"
-      title="DeviceDetails.title"
-      :description="device.name"
+      :title="device.name"
+      description="DeviceDetails.title"
+      class="detail-element-header"
     ></opensilex-PageHeader>
 
-    <opensilex-PageActions :tabs="true" :returnButton="true" >
+    <opensilex-PageActions :tabs="true" :returnButton="true">
       <template v-slot>
         <b-nav-item
           :active="isDetailsTab()"
@@ -50,24 +51,25 @@
 
     <opensilex-PageContent>
         <template v-slot>
-          <opensilex-DeviceDescription v-if="isDetailsTab()" :uri="uri"></opensilex-DeviceDescription>
+          <opensilex-DeviceDescription
+              v-if="isDetailsTab()"
+              :key="lang">
+          </opensilex-DeviceDescription>
 
          <opensilex-DeviceVisualizationTab
           v-else-if="isVisualizationTab()"
           :device="uri"
-          :modificationCredentialId="credentials.CREDENTIAL_DEVICE_MODIFICATION_ID"
           ></opensilex-DeviceVisualizationTab>
 
          <opensilex-DeviceDataFiles
           v-else-if="isDatafilesTab()"
           :device="uri"
-          :modificationCredentialId="credentials.CREDENTIAL_DEVICE_MODIFICATION_ID"
         ></opensilex-DeviceDataFiles>
         
           <opensilex-DocumentTabList
             v-else-if="isDocumentTab()"
             :uri="uri"
-            :modificationCredentialId="credentials.CREDENTIAL_DEVICE_MODIFICATION_ID"
+            :modificationCredentialId="credentials.CREDENTIAL_DOCUMENT_MODIFICATION_ID"
           ></opensilex-DocumentTabList>
 
           <opensilex-AnnotationList
@@ -76,8 +78,8 @@
             :target="uri"
             :displayTargetColumn="false"
             :enableActions="true"
-            :modificationCredentialId="credentials.CREDENTIAL_DEVICE_MODIFICATION_ID"
-            :deleteCredentialId="credentials.CREDENTIAL_DEVICE_DELETE_ID"
+            :modificationCredentialId="credentials.CREDENTIAL_ANNOTATION_MODIFICATION_ID"
+            :deleteCredentialId="credentials.CREDENTIAL_ANNOTATION_DELETE_ID"
             ></opensilex-AnnotationList>
 
           <opensilex-EventList
@@ -85,8 +87,8 @@
               ref="eventList"
               :target="uri"
               :columnsToDisplay="new Set(['type','start','end','description'])"
-              :modificationCredentialId="credentials.CREDENTIAL_DEVICE_MODIFICATION_ID"
-              :deleteCredentialId="credentials.CREDENTIAL_DEVICE_DELETE_ID"
+              :modificationCredentialId="credentials.CREDENTIAL_EVENT_MODIFICATION_ID"
+              :deleteCredentialId="credentials.CREDENTIAL_EVENT_DELETE_ID"
               :displayTargetFilter="false"
           ></opensilex-EventList>
 
@@ -94,8 +96,8 @@
               v-if="isPositionTab()"
               ref="positionList"
               :target="uri"
-              :modificationCredentialId="credentials.CREDENTIAL_EXPERIMENT_MODIFICATION_ID"
-              :deleteCredentialId="credentials.CREDENTIAL_EXPERIMENT_DELETE_ID"
+              :modificationCredentialId="credentials.CREDENTIAL_EVENT_MODIFICATION_ID"
+              :deleteCredentialId="credentials.CREDENTIAL_EVENT_DELETE_ID"
           ></opensilex-PositionList>
 
         </template>
@@ -131,6 +133,10 @@
             return this.$store.state.credentials;
         }
 
+        get lang() {
+            return this.$store.getters.language;
+        }
+
         device: DeviceGetDTO = {
               uri: null,
               rdf_type: null,
@@ -143,7 +149,8 @@
               removal: null,
               relations: null,
               description: null
-            };
+        };
+
         created() {
           this.service = this.$opensilex.getService("opensilex.DevicesService");
           this.uri = decodeURIComponent(this.$route.params.uri);

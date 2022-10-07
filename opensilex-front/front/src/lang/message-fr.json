@@ -67,6 +67,9 @@
             "geometry-help": "Coordonnées géospatiales au format WKT",
             "select-all" : "Sélectionner tout",
             "unselect-all" : "Désélectionner tout",
+            "example": "Exemple",
+            "loading" : "Chargement...",
+            "metadata": "Metadonnée(s)",
             "errors": {
                 "error-title": "Erreur",
                 "constraint-error": "Une erreur de validation s'est produite, merci de vérifier les données saisies.",
@@ -75,7 +78,10 @@
                 "unexpected-error": "Une erreur inattendue s'est produite, merci de contacter votre administrateur local.",
                 "unauthorized-error": "Votre session a expiré, merci de vous connecter à nouveau.",
                 "form-step-errors": "Certains champs sont requis avant de passer à l'étape suivante",
-                "uri-already-exists": "Cet URI existe déjà."
+                "uri-already-exists": "Cet URI existe déjà.",
+                "regex": {
+                    "invalid-regex" : "Expression régulière invalide : {__regex__}. Les caractères suivants sont interdits : {__forbidden_characters__}"
+                }
             },
             "form-wizard": {
                 "external-ontologies": "(Optionnel) Ontologies de références",
@@ -136,7 +142,11 @@
                 }
             },
             "addDocument": "Ajouter un document",
-            "warningInstruction" : "Fonctionnalité expérimentale"
+            "warningInstruction" : "Fonctionnalité expérimentale",
+            "organization": {
+                "site": "Site",
+                "sites": "Sites"
+            }
         },
         "copyToClipboard": {
             "copyUri": "Copier l'URI dans le presse papier",
@@ -152,6 +162,12 @@
             "user": {
                 "admin": "Admin",
                 "logout": "Déconnexion"
+            },
+            "user-guide":"Guide d'utilisation",
+            "download-user-guide": "Télécharger Guide d'utilisation",
+            "version-label": {
+                "develop": "Develop",
+                "release": "Release"
             }
         },
         "menu": {
@@ -167,6 +183,7 @@
                 "visualization":"Visualisation"
             },
             "experiments": "Expérimentations",
+            "facilities": "Installations environnementales",
             "infrastructure": "Organisations",
             "installations": "Installations",
             "projects": "Projets",
@@ -195,9 +212,11 @@
             "infrastructures": "Organisations",
             "configuration": "Administration",
             "scientificObjectTypes": "Types d'objets scientifiques",
-            "facilitiesTypes": "Types d'installations techniques",
-            "deviceTypes": "Types de capteurs",
-            "eventTypes": "Types d'évènements",
+            "facilitiesTypes": "Types d'installations environnementales",
+            "deviceTypes": "Types de dispositifs",
+            "eventTypes": "Types d'évènements", 
+            "factorCategoryTypes": "Catégories de facteurs",
+            "namespaces": "Espaces de nom",
             "scientific-organisation": "Organisation scientifique",
             "devices": "Dispositifs",
             "events" : "Évènements",
@@ -373,6 +392,7 @@
             "technicalSupervisors": "Responsables techniques",
             "scientificSupervisors": "Responsables scientifiques",
             "infrastructures": "Organisations",
+            "facilities": "Installations techniques",
             "contacts": "Contacts",
             "add": "Ajouter une expérimentation",
             "update": "Modifier l'expérimentation",
@@ -446,6 +466,27 @@
                 "infra-groups-projects": "Organisations, groupes et projets",
                 "scientific-technical-users": "Utilisateurs",
                 "variables-sensors-factors": "Variables, facteurs et capteurs"
+            }
+        },
+        "germplasms": {
+            "errors": {
+                "duplicateUri": "URI en double : {uri}",
+                "duplicateLabel": "Label en double : {label}",
+                "wrongRdfType": "Le rdfType n'existe pas dans l'ontologie : {rdfType}",
+                "unknownSpecies": "L'espèce donnée n'existe pas dans la base de données : {unknownSpecies}",
+                "unknownVariety": "La variete donnée n'existe pas dans la base de données : {unknownVariety}",
+                "unknownAccession": "L'accession donnée n'existe pas dans la base de données : {unknownAccession}",
+                "missingAttribute": "Champ necessaire manquant : {message}"
+            }
+        },
+        "scientificObjects": {
+            "error" : {
+                "delete" : {
+                    "associated-data" : "L'objet scientifique {scientific_object} ne peut être supprimé car il y a des données associées. Vous devez les supprimer d'abord",
+                    "associated-data-files" : "L'objet scientifique {scientific_object} ne peut être supprimé car il y a des fichiers de données associés. Vous devez les supprimer d'abord",
+                    "used-in-experiment" :"L'objet scientifique {scientific_object} ne peut être supprimé car il est utilisé dans une expérience. Vous devez supprimer l'objet de l'expérience d'abord",
+                    "has-child" :"L'objet scientifique {scientific_object} ne peut être supprimé car il cet objet a des enfants. Vous devez les supprimer d'abord (ça peut paraitre cruel mais il le faut)"
+                }
             }
         },
         "skos": {
@@ -546,6 +587,30 @@
         },
         "document": {
             "nopreview": "Pas de prévisualisation possible"
+        },
+        "organization": {
+            "exception": {
+                "siteMustHaveParent": "Un site doit avoir au moins une organisation parente.",
+                "siteFacilityInvalidAddress": "Le site '{site}' et l'installation environnementale '{facility}' doivent avoir la même adresse."
+            }
+        },
+        "facility": {
+            "filter-placeholder": "Rechercher des installations environnementales..."
+        },
+        "custom-properties" : {
+            "linked-resources" : "Ressources liée(s)"
+        },
+        "ontology": {
+            "class" : {
+                "exception" : {
+                    "delete" : {
+                        "instance-exists" : "Une ou plusieurs ressources du type {class} existent. Vous devez les supprimer d'abord",
+                        "has-children" : "Le type {class} a plusieurs sous-types. Vous devez les supprimer d'abord",
+                        "has-data-properties" : "Le type {class} est relié à plusieurs propriétés literales. Vous devez les supprimer d'abord",
+                        "has-object-properties" : "Le type {class} est relié à plusieurs propriétés objets. Vous devez les supprimer d'abord"
+                    }
+                }
+            }
         }
     },
     "credential-groups": {
@@ -564,9 +629,18 @@
         "documents": "Documents",
         "annotations" : "Annotations",
         "device" : "Dispositifs",
-        "events": "Événements"
+        "events": "Événements",
+        "facilities": "Installations techniques",
+        "provenance": "Provenances",
+        "vocabulary": "Vocabulaire",
+        "packages": "Librairies"
     },
     "credential": {
+        "default": {
+            "access": "Accès menu",
+            "modification": "Ajout / modification",
+            "delete": "Suppression"
+        },
         "experiment": {
             "modification": "Ajout / Modification des expérimentations",
             "delete": "Suppression des expérimentations"
@@ -626,6 +700,18 @@
         "event": {
             "modification": "Ajout / Modification des événements",
             "delete": "Suppression des événements"
+        },
+        "facility":  {
+            "modification": "Ajout / Modification des installations environnementales",
+            "delete": "Suppression des installations environnementales"
+        },
+        "provenance": {
+            "modification": "Ajout / Modification des provenances",
+            "delete": "Suppression des provenances"
+        },
+        "profile": {
+            "modification": "Ajout / Modification des profils",
+            "delete": "Suppression des profils"
         }
     },
     "validations": {
@@ -637,6 +723,9 @@
         "dateDiff" : "La date du champ {_field_} ne doit pas être antérieur à la date de début",
         "nameFiltered" : "Le {_field_} ne doit pas contenir -,+,=,<,>,=,?,/,*,&"
     },
+    "searchfilter": {
+        "label": "Filtres de recherche"
+    },
     "datatypes": {
         "boolean": "booléen",
         "number": "nombre entier",
@@ -646,5 +735,14 @@
         "string": "texte court",
         "longstring": "texte long",
         "uri": "uri"
+    },
+    "datatype-example": {
+        "integer": "8611",
+        "decimal": "44.521",
+        "string": "Opensilex",
+        "uri": "http://opensilex.org/",
+        "date": "2022-01-01",
+        "datetime": "2022-01-01T00:00:00Z",
+        "boolean": "vrai ou faux"
     }
 }

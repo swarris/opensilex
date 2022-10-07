@@ -1,21 +1,27 @@
 import { User } from './User';
 import Vue from 'vue';
 import { ModuleComponentDefinition } from './ModuleComponentDefinition';
-import { MenuItemDTO, FrontConfigDTO } from '../lib';
+import {MenuItemDTO, FrontConfigDTO, UserFrontConfigDTO} from '../lib';
 import VueRouter from 'vue-router';
 import OpenSilexVuePlugin from './OpenSilexVuePlugin';
 
 export class OpenSilexRouter {
 
     private frontConfig: FrontConfigDTO;
+    private userFrontConfig: UserFrontConfigDTO;
     private menu: Array<MenuItemDTO> = [];
     private router: any;
     private pathPrefix: string
     private PUBLIC_ROUTE: string = "public";
+    private sectionAttributes : any = {};
 
     constructor(pathPrefix: string) {
         this.pathPrefix = pathPrefix;
         this.router = this.createRouter(User.ANONYMOUS());
+    }
+    
+    public getSectionAttributes() {
+        return this.sectionAttributes;
     }
 
     public getMenu() {
@@ -24,6 +30,10 @@ export class OpenSilexRouter {
 
     public setConfig(config: FrontConfigDTO) {
         this.frontConfig = config;
+    }
+
+    public setUserConfig(userConfig: UserFrontConfigDTO) {
+        this.userFrontConfig = userConfig;
     }
 
     public getRouter() {
@@ -75,15 +85,19 @@ export class OpenSilexRouter {
                         component: this.getAsyncComponentLoader($opensilex, route.component),
                         meta:{public: true}
                     });
+                    
                 }
             }
 
-            this.menu = this.buildMenu(frontConfig.menu, routes, user);
             
             routes.push({
                 path: "*",
                 component: this.getAsyncComponentLoader($opensilex, frontConfig.notFoundComponent)
             });
+        }
+
+        if (this.userFrontConfig) {
+            this.menu = this.buildMenu(this.userFrontConfig.menu, routes, user);
         }
 
         return routes;
@@ -127,18 +141,21 @@ export class OpenSilexRouter {
         let menu: Array<MenuItemDTO> = [];
         for (let i in items) {
             let item: MenuItemDTO = items[i];
-            let hasRouteAccess = false;
 
+
+            
             if (item.route) {
                 let route = item.route;
-                if (user.hasAllCredentials(route.credentials)) {
-                    hasRouteAccess = true;
-                    menu.push(item);
-                    routes.push({
-                        path: route.path,
-                        component: this.getAsyncComponentLoader($opensilex, route.component)
-                    });
-                }
+                menu.push(item);
+                routes.push({
+                    path: route.path,
+                    component: this.getAsyncComponentLoader($opensilex, route.component)
+                });
+                this.sectionAttributes[route.path] = {
+                    icon: route.icon,
+                    title: route.title,
+                    description: route.description
+                };
             }
 
             let childItems: Array<MenuItemDTO> = [];

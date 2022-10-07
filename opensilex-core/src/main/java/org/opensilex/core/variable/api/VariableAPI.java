@@ -5,11 +5,18 @@
 //******************************************************************************
 package org.opensilex.core.variable.api;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.dataformat.csv.CsvMapper;
+import com.fasterxml.jackson.dataformat.csv.CsvSchema;
 import io.swagger.annotations.*;
 import org.apache.jena.datatypes.xsd.XSDDatatype;
-import org.opensilex.core.data.dal.DataDAO;
+import org.opensilex.core.URIsListPostDTO;
 import org.opensilex.core.variable.dal.VariableDAO;
 import org.opensilex.core.variable.dal.VariableModel;
+import org.opensilex.core.variable.dal.VariableSearchFilter;
 import org.opensilex.fs.service.FileStorageService;
 import org.opensilex.nosql.mongodb.MongoDBService;
 import org.opensilex.security.authentication.ApiCredential;
@@ -18,10 +25,9 @@ import org.opensilex.security.authentication.ApiProtected;
 import org.opensilex.security.authentication.NotFoundURIException;
 import org.opensilex.security.authentication.injection.CurrentUser;
 import org.opensilex.security.user.dal.UserModel;
-import org.opensilex.server.response.ErrorResponse;
-import org.opensilex.server.response.ObjectUriResponse;
-import org.opensilex.server.response.PaginatedListResponse;
-import org.opensilex.server.response.SingleObjectResponse;
+import org.opensilex.server.response.*;
+import org.opensilex.server.rest.serialization.ObjectMapperContextResolver;
+import org.opensilex.server.rest.validation.ValidURI;
 import org.opensilex.sparql.deserializer.SPARQLDeserializers;
 import org.opensilex.sparql.exceptions.SPARQLAlreadyExistingUriException;
 import org.opensilex.sparql.service.SPARQLService;
@@ -35,11 +41,15 @@ import javax.validation.constraints.NotNull;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import java.io.IOException;
+import java.io.StringWriter;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.*;
-
-import org.opensilex.server.response.ErrorDTO;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 @Api(VariableAPI.CREDENTIAL_VARIABLE_GROUP_ID)
 @Path(VariableAPI.PATH)
@@ -55,10 +65,10 @@ public class VariableAPI {
     public static final String CREDENTIAL_VARIABLE_GROUP_LABEL_KEY = "credential-groups.variables";
 
     public static final String CREDENTIAL_VARIABLE_MODIFICATION_ID = "variable-modification";
-    public static final String CREDENTIAL_VARIABLE_MODIFICATION_LABEL_KEY = "credential.variable.modification";
+    public static final String CREDENTIAL_VARIABLE_MODIFICATION_LABEL_KEY = "credential.default.modification";
 
     public static final String CREDENTIAL_VARIABLE_DELETE_ID = "variable-delete";
-    public static final String CREDENTIAL_VARIABLE_DELETE_LABEL_KEY = "credential.variable.delete";
+    public static final String CREDENTIAL_VARIABLE_DELETE_LABEL_KEY = "credential.default.delete";
 
     @Inject
     private SPARQLService sparql;
@@ -174,43 +184,73 @@ public class VariableAPI {
         return new ObjectUriResponse(Response.Status.OK, uri).getResponse();
     }
 
-
     @GET
     @ApiOperation(
-            value = "Search variables by name, long name, entity, characteristic, method or unit name",
+            value = "Search variables",
             notes = "The following fields could be used for sorting : \n\n" +
                     " _entity_name/entityName : the name of the variable entity\n\n"+
                     " _characteristic_name/characteristicName : the name of the variable characteristic\n\n"+
                     " _method_name/methodName : the name of the variable method\n\n"+
                     " _unit_name/unitName : the name of the variable unit\n\n"
-            )
+    )
     @ApiProtected
     @ApiResponses(value = {
-            @ApiResponse(code = 200, message = "Return variables", response = VariableGetDTO.class, responseContainer = "List")
+        @ApiResponse(code = 200, message = "Return variables", response = VariableGetDTO.class, responseContainer = "List")
     })
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response searchVariables(
-            @ApiParam(value = "Name regex pattern", example = "plant_height") @QueryParam("name") String namePattern ,
+            @ApiParam(value = "Name regex pattern", example = "plant_height") @QueryParam("name") String namePattern,
+            @ApiParam(value = "Entity filter") @QueryParam("entity") @ValidURI URI entity,
+            @ApiParam(value = "Entity of interest filter") @QueryParam("entity_of_interest") @ValidURI URI interestEntity,
+            @ApiParam(value = "Characteristic filter") @QueryParam("characteristic") @ValidURI URI characteristic,
+            @ApiParam(value = "Method filter") @QueryParam("method") @ValidURI URI method,
+            @ApiParam(value = "Unit filter") @QueryParam("unit") @ValidURI URI unit,
+            @ApiParam(value = "Group filter") @QueryParam("group_of_variables") @ValidURI URI group,
+            @ApiParam(value = "Data type filter") @QueryParam("data_type") @ValidURI URI dataType,
+            @ApiParam(value = "Time interval filter") @QueryParam("time_interval") String timeInterval,
+            @ApiParam(value = "Species filter") @QueryParam("species") List<URI> species,
+            @ApiParam(value = "Set this param to true to get associated data") @DefaultValue("false") @QueryParam("withAssociatedData") boolean withAssociatedData,
+            @ApiParam(value = "Experiment filter") @QueryParam("experiments") List<URI> experiments,
+            @ApiParam(value = "Scientific object filter") @QueryParam("scientific_objects") List<URI> objects,
+            @ApiParam(value = "Device filter") @QueryParam("devices") List<URI> devices,
             @ApiParam(value = "List of fields to sort as an array of fieldName=asc|desc", example = "uri=asc") @DefaultValue("name=asc") @QueryParam("order_by") List<OrderBy> orderByList,
             @ApiParam(value = "Page number", example = "0") @QueryParam("page") @DefaultValue("0") @Min(0) int page,
             @ApiParam(value = "Page size", example = "20") @QueryParam("page_size") @DefaultValue("20") @Min(0) int pageSize
     ) throws Exception {
         VariableDAO dao = getDao();
-        ListWithPagination<VariableModel> resultList = dao.search(
-                namePattern,
-                orderByList,
-                page,
-                pageSize
-        );
 
-        ListWithPagination<VariableGetDTO> resultDTOList = resultList.convert(
+        VariableSearchFilter filter = new VariableSearchFilter()
+                .setNamePattern(namePattern)
+                .setEntity(entity)
+                .setInterestEntity(interestEntity)
+                .setCharacteristic(characteristic)
+                .setMethod(method)
+                .setUnit(unit)
+                .setGroup(group)
+                .setDataType(dataType)
+                .setTimeInterval(timeInterval)
+                .setSpecies(species)
+                .setWithAssociatedData(withAssociatedData)
+                .setDevices(devices)
+                .setExperiments(experiments)
+                .setObjects(objects)
+                .setUserModel(currentUser);
+
+        filter.setPage(page)
+                .setPageSize(pageSize)
+                .setLang(currentUser.getLanguage())
+                .setOrderByList(orderByList);
+
+        // Convert paginated list to DTO
+        ListWithPagination<VariableGetDTO> resultDTOList = dao.search(filter).convert(
                 VariableGetDTO.class,
                 VariableGetDTO::fromModel
         );
+        
         return new PaginatedListResponse<>(resultDTOList).getResponse();
     }
-
+    
     @GET
     @Path("details")
     @ApiOperation(
@@ -233,13 +273,18 @@ public class VariableAPI {
             @ApiParam(value = "Page number", example = "0") @QueryParam("page") @DefaultValue("0") @Min(0) int page,
             @ApiParam(value = "Page size", example = "20") @QueryParam("page_size") @DefaultValue("20") @Min(0) int pageSize
     ) throws Exception {
+
+        VariableSearchFilter filter = new VariableSearchFilter()
+                .setNamePattern(namePattern)
+                .setFetchSpecies(true);
+
+        filter.setOrderByList(orderByList)
+                .setPage(page)
+                .setPageSize(pageSize)
+                .setLang(currentUser.getLanguage());
+
         VariableDAO dao = getDao();
-        ListWithPagination<VariableModel> resultList = dao.search(
-                namePattern,
-                orderByList,
-                page,
-                pageSize
-        );
+        ListWithPagination<VariableModel> resultList = dao.search(filter);
 
         ListWithPagination<VariableDetailsDTO> resultDTOList = resultList.convert(
                 VariableDetailsDTO.class,
@@ -251,7 +296,6 @@ public class VariableAPI {
     @GET
     @Path("datatypes")
     @ApiOperation(value = "Get variables datatypes")
-    @ApiProtected
     @ApiResponses(value = {
             @ApiResponse(code = 200, message = "Return data types", response = VariableDatatypeDTO.class, responseContainer = "List")
     })
@@ -260,11 +304,12 @@ public class VariableAPI {
     public Response getDatatypes() throws URISyntaxException {
 
         List<VariableDatatypeDTO> variablesXsdTypes = Arrays.asList(
-            new VariableDatatypeDTO(XSDDatatype.XSDboolean, "datatypes.boolean"),
-            new VariableDatatypeDTO(XSDDatatype.XSDdate, "datatypes.date"),
-            new VariableDatatypeDTO(XSDDatatype.XSDdecimal, "datatypes.decimal"),
-            new VariableDatatypeDTO(XSDDatatype.XSDinteger, "datatypes.number"),
-            new VariableDatatypeDTO(XSDDatatype.XSDstring, "datatypes.string")
+                new VariableDatatypeDTO(XSDDatatype.XSDboolean, "datatypes.boolean"),
+                new VariableDatatypeDTO(XSDDatatype.XSDdate, "datatypes.date"),
+                new VariableDatatypeDTO(XSDDatatype.XSDdateTime, "datatypes.datetime"),
+                new VariableDatatypeDTO(XSDDatatype.XSDdecimal, "datatypes.decimal"),
+                new VariableDatatypeDTO(XSDDatatype.XSDinteger, "datatypes.number"),
+                new VariableDatatypeDTO(XSDDatatype.XSDstring, "datatypes.string")
         );
 
         return new PaginatedListResponse<>(variablesXsdTypes).getResponse();
@@ -292,13 +337,11 @@ public class VariableAPI {
             @ApiParam(value = "Variables URIs", required = true) @QueryParam("uris") @NotNull List<URI> uris
     ) throws Exception {
         VariableDAO dao = getDao();
-        List<VariableModel> models = dao.getList(uris);
+        List<VariableModel> models = dao.getList(uris, currentUser.getLanguage());
 
         if (!models.isEmpty()) {
             List<VariableDetailsDTO> resultDTOList = new ArrayList<>(models.size());
-            models.forEach(result -> {
-                resultDTOList.add(new VariableDetailsDTO(result));
-            });
+            models.forEach(result -> resultDTOList.add(new VariableDetailsDTO(result)));
 
             return new PaginatedListResponse<>(resultDTOList).getResponse();
         } else {
@@ -309,6 +352,128 @@ public class VariableAPI {
                     "Unknown variable URIs"
             ).getResponse();
         }
+    }
+    
+    private Response buildCSVForClassicExport(List<VariableModel> variableList) throws IOException {
+                // Convert list to DTO
+        List<VariableExportDTOClassic> resultDTOList = new ArrayList<>();
+        for (VariableModel variable : variableList) {
+            VariableExportDTOClassic dto = VariableExportDTOClassic.fromModel(variable);
+            resultDTOList.add(dto);          
+        }
+
+        if (resultDTOList.isEmpty()) {
+            resultDTOList.add(new VariableExportDTOClassic()); // to return an empty table
+        }
+        
+        //Construct manually json to convert it to csv
+        ObjectMapper mapper = ObjectMapperContextResolver.getObjectMapper();
+        JsonNode jsonTree = mapper.convertValue(resultDTOList, JsonNode.class);
+        List<JsonNode> list = new ArrayList<>();
+        if(jsonTree.isArray()) {
+            for(JsonNode jsonNode : jsonTree) {               
+                list.add(jsonNode);              
+            }
+        }
+        
+        ArrayNode arrayNode = new ArrayNode(JsonNodeFactory.instance, list);
+
+        CsvSchema.Builder csvSchemaBuilder = CsvSchema.builder();
+        JsonNode firstObject = arrayNode.elements().next();
+        firstObject.fieldNames().forEachRemaining(csvSchemaBuilder::addColumn);
+                        
+        CsvSchema csvSchema = csvSchemaBuilder.build().withHeader().withArrayElementSeparator(" ");
+        StringWriter str = new StringWriter();
+
+        CsvMapper csvMapper = new CsvMapper();
+        csvMapper.writerFor(JsonNode.class).with(csvSchema).writeValue(str, arrayNode);
+
+        LocalDate date = LocalDate.now();
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyyMMdd");
+        String fileName = "export_classic_variable" + dtf.format(date) + ".csv";
+
+        return Response.ok(str.toString(), MediaType.APPLICATION_OCTET_STREAM).header("Content-Disposition", "attachment; filename=\"" + fileName + "\"").build();
+    }
+
+    private Response buildCSVForDetailsExport(List<VariableModel> variableList) throws IOException {
+                // Convert list to DTO
+        List<VariableExportDTODetails> resultDTOList = new ArrayList<>();
+        for (VariableModel variable : variableList) {
+            VariableExportDTODetails dto = VariableExportDTODetails.fromModel(variable);
+            resultDTOList.add(dto);          
+        }
+
+        if (resultDTOList.isEmpty()) {
+            resultDTOList.add(new VariableExportDTODetails()); // to return an empty table
+        }
+        
+        //Construct manually json to convert it to csv
+        ObjectMapper mapper = ObjectMapperContextResolver.getObjectMapper();
+        JsonNode jsonTree = mapper.convertValue(resultDTOList, JsonNode.class);
+        List<JsonNode> list = new ArrayList<>();
+        if(jsonTree.isArray()) {
+            for(JsonNode jsonNode : jsonTree) {               
+                list.add(jsonNode);              
+            }
+        }
+        
+        ArrayNode arrayNode = new ArrayNode(JsonNodeFactory.instance, list);
+
+        CsvSchema.Builder csvSchemaBuilder = CsvSchema.builder();
+        JsonNode firstObject = arrayNode.elements().next();
+        firstObject.fieldNames().forEachRemaining(csvSchemaBuilder::addColumn);
+                        
+        CsvSchema csvSchema = csvSchemaBuilder.build().withHeader().withArrayElementSeparator(" ");
+        StringWriter str = new StringWriter();
+
+        CsvMapper csvMapper = new CsvMapper();
+        csvMapper.writerFor(JsonNode.class).with(csvSchema).writeValue(str, arrayNode);
+
+        LocalDate date = LocalDate.now();
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyyMMdd");
+        String fileName = "export_detailed_variable" + dtf.format(date) + ".csv";
+
+        return Response.ok(str.toString(), MediaType.APPLICATION_OCTET_STREAM).header("Content-Disposition", "attachment; filename=\"" + fileName + "\"").build();
+    }
+    
+    @POST
+    @Path("export_classic_by_uris")
+    @ApiOperation("export variable by list of uris")
+    @ApiProtected
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces({MediaType.TEXT_PLAIN})
+    @ApiResponses(value = {
+        @ApiResponse(code = 200, message = "Return a csv file with variable list"),
+        @ApiResponse(code = 400, message = "Invalid parameters", response = ErrorDTO.class)
+    })
+    public Response classicExportVariableByURIs(
+            @ApiParam(value = "List of variable URI", example = "http://opensilex.dev/set/variables/Plant_Height") URIsListPostDTO dto
+    ) throws Exception {
+        VariableDAO dao = getDao();
+        List<VariableModel> variableList = dao.getList(dto.getUris());
+        
+        return buildCSVForClassicExport(variableList);
+        
+    }
+
+    @POST
+    @Path("export_details_by_uris")
+    @ApiOperation("export detailed variable by list of uris")
+    @ApiProtected
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces({MediaType.TEXT_PLAIN})
+    @ApiResponses(value = {
+        @ApiResponse(code = 200, message = "Return a csv file with detailed variable list"),
+        @ApiResponse(code = 400, message = "Invalid parameters", response = ErrorDTO.class)
+    })
+    public Response detailsExportVariableByURIs(
+            @ApiParam(value = "List of variable URI", example = "http://opensilex.dev/set/variables/Plant_Height") URIsListPostDTO dto
+    ) throws Exception {
+        VariableDAO dao = getDao();
+        List<VariableModel> variableList = dao.getList(dto.getUris());
+        
+        return buildCSVForDetailsExport(variableList);
+        
     }
 }
 

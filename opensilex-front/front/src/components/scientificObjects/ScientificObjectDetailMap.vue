@@ -1,14 +1,9 @@
 <template>
   <div v-if="selected && selected.uri">
     <!-- Name -->
-    <span v-if="withBasicProperties" class="field-view-title">{{
-      $t("component.common.name")
-    }}</span>
-    <p></p>
+    <span v-if="withBasicProperties" class="field-view-title">{{ $t("component.common.name") }}</span>
     <opensilex-UriLink
-      :to="{
-        path: '/scientific-objects/details/' + encodeURIComponent(selected.uri),
-      }"
+      :to="{ path: '/scientific-objects/details/' + encodeURIComponent(selected.uri)}"
       :uri="selected.uri"
       :value=" selected.name + ' (' + ( selected.rdf_type_name.charAt(0).toUpperCase() + selected.rdf_type_name.slice(1) ).bold() + ')'"
       target="_blank"
@@ -16,7 +11,7 @@
     </opensilex-UriLink>
     <template v-if="selected && selected.uri">
      <div v-for="(v, index) in typeProperties" v-bind:key="index">
-        <template v-if=" ['vocabulary:hasFactorLevel', 'vocabulary:hasGermplasm'].indexOf( v.definition.property ) > -1">
+        <template v-if=" ['vocabulary:hasFactorLevel', 'vocabulary:hasGermplasm'].indexOf( v.definition.uri ) > -1">
           <span class="field-view-title">{{ v.definition.name }}</span>
           <ul>
             <br />
@@ -31,7 +26,7 @@
           </ul>
         </template>
       </div>
-      <div v-for="(v, index) in typeProperties" v-bind:key="index">
+      <div v-for="(v, index) in typeProperties" v-bind:key="index+'Bis'">
         <template
           v-if="isViewAllInformation && !Array.isArray(v.property)"
           class="static-field"
@@ -41,6 +36,7 @@
             :is="v.definition.view_component"
             :experiment="experiment"
             :value="v.property"
+            target="_blank"
           ></component>
         </template>
       </div>
@@ -65,10 +61,15 @@
 <script lang="ts">
 import { Component, Prop, Ref, Watch } from "vue-property-decorator";
 import Vue from "vue";
+import {VueJsOntologyExtensionService, VueRDFTypePropertyDTO} from "../../lib";
+import OpenSilexVuePlugin from "../../models/OpenSilexVuePlugin";
+import { PositionsService } from 'opensilex-core/index';
 
 @Component
 export default class ScientificObjectDetailMap extends Vue {
-  $opensilex: any;
+    $opensilex: OpenSilexVuePlugin;
+    vueService: VueJsOntologyExtensionService;
+    positionService: PositionsService;
 
   @Prop()
   selected;
@@ -107,6 +108,10 @@ export default class ScientificObjectDetailMap extends Vue {
     return this.$store.state.credentials;
   }
 
+  created(){
+    this.vueService = this.$opensilex.getService("VueJsOntologyExtensionService");
+    this.positionService = this.$opensilex.getService("PositionsService");
+  }
   mounted() {
     if (this.selected) {
       this.onSelectionChange();
@@ -120,14 +125,12 @@ export default class ScientificObjectDetailMap extends Vue {
     this.classModel = {};
 
     return Promise.all([
-      this.$opensilex
-        .getService("opensilex.VueJsOntologyExtensionService")
+      this.vueService
         .getRDFTypeProperties(
           this.selected.rdf_type,
           this.$opensilex.Oeso.SCIENTIFIC_OBJECT_TYPE_URI
         ),
-      this.$opensilex
-        .getService("opensilex.PositionsService")
+      this.positionService
         .getPosition(this.selected.uri)
         .catch(() => null),
     ]).then((result) => {
@@ -215,8 +218,8 @@ export default class ScientificObjectDetailMap extends Vue {
     let pOrder = this.classModel.properties_order;
 
     typeProperties.sort((a, b) => {
-      let aProp = a.definition.property;
-      let bProp = b.definition.property;
+      let aProp = a.definition.uri;
+      let bProp = b.definition.uri;
       if (aProp == bProp) {
         return 0;
       }
@@ -247,23 +250,23 @@ export default class ScientificObjectDetailMap extends Vue {
     });
   }
 
-  loadProperties(typeProperties, properties, valueByProperties) {
+  loadProperties(typeProperties: Array<{definition: VueRDFTypePropertyDTO,property}> , properties: Array<VueRDFTypePropertyDTO>, valueByProperties) {
     for (let i in properties) {
       let property = properties[i];
 
-      if (valueByProperties[property.property]) {
+      if (valueByProperties[property.uri]) {
         if (
           property.is_list &&
-          !Array.isArray(valueByProperties[property.property])
+          !Array.isArray(valueByProperties[property.uri])
         ) {
           typeProperties.push({
             definition: property,
-            property: [valueByProperties[property.property]],
+            property: [valueByProperties[property.uri]],
           });
         } else {
           typeProperties.push({
             definition: property,
-            property: valueByProperties[property.property],
+            property: valueByProperties[property.uri],
           });
         }
       }
@@ -277,11 +280,7 @@ export default class ScientificObjectDetailMap extends Vue {
       if (
         lastMove &&
         lastMove.to &&
-        lastMove.to.uri &&
-        this.$opensilex.Oeso.checkURIs(
-          relation.property,
-          this.$opensilex.Oeso.HAS_FACILITY
-        )
+        lastMove.to.uri 
       ) {
         relation.value = lastMove.to.uri;
       }
@@ -305,19 +304,6 @@ export default class ScientificObjectDetailMap extends Vue {
     return valueByProperties;
   }
 
-  deleteScientificObject(uri) {
-    let scientificObjectsService = this.$opensilex.getService(
-      "opensilex.ScientificObjectsService"
-    );
-    scientificObjectsService
-      .deleteScientificObject(uri)
-      .then(() => {
-        this.$router.push({
-          path: "/scientific-objects",
-        });
-      })
-      .catch(this.$opensilex.errorHandler);
-  }
 }
 </script>
 <style lang="scss" scoped>

@@ -12,20 +12,25 @@ import java.net.URISyntaxException;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import io.swagger.annotations.ApiModelProperty;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 import org.opensilex.core.germplasm.api.GermplasmAPI;
 import org.opensilex.core.ontology.SKOSReferencesDTO;
 import org.opensilex.core.species.api.SpeciesDTO;
+import org.opensilex.core.species.dal.SpeciesModel;
 import org.opensilex.core.variable.api.entity.EntityGetDTO;
+import org.opensilex.core.variable.api.entityOfInterest.InterestEntityGetDTO;
 import org.opensilex.core.variable.api.method.MethodGetDTO;
 import org.opensilex.core.variable.api.characteristic.CharacteristicGetDTO;
 import org.opensilex.core.variable.api.unit.UnitGetDTO;
-import org.opensilex.core.variable.dal.EntityModel;
-import org.opensilex.core.variable.dal.MethodModel;
-import org.opensilex.core.variable.dal.CharacteristicModel;
-import org.opensilex.core.variable.dal.UnitModel;
-import org.opensilex.core.variable.dal.VariableModel;
+import org.opensilex.core.variable.dal.*;
 import org.opensilex.server.rest.validation.ValidURI;
 import org.opensilex.sparql.deserializer.SPARQLDeserializers;
+import org.opensilex.sparql.response.NamedResourceDTO;
 
 
 /**
@@ -35,7 +40,7 @@ import org.opensilex.sparql.deserializer.SPARQLDeserializers;
 
 @JsonPropertyOrder({
         "uri", "name", "alternative_name", "description",
-        "entity","characteristic", "trait", "trait_name", "method", "unit",
+        "entity", "entity_of_interest","characteristic", "trait", "trait_name", "method", "unit",
         "species","time_interval", "sampling_interval", "datatype",
         SKOSReferencesDTO.EXACT_MATCH_JSON_PROPERTY,
         SKOSReferencesDTO.CLOSE_MATCH_JSON_PROPERTY,
@@ -50,7 +55,10 @@ public class VariableDetailsDTO extends BaseVariableDetailsDTO<VariableModel> {
 
     @JsonProperty("entity")
     private EntityGetDTO entity;
-
+    
+    @JsonProperty("entity_of_interest")
+    private InterestEntityGetDTO entityOfInterest;
+    
     @JsonProperty("characteristic")
     private CharacteristicGetDTO characteristic;
 
@@ -67,7 +75,7 @@ public class VariableDetailsDTO extends BaseVariableDetailsDTO<VariableModel> {
     private String traitName;
 
     @JsonProperty("species")
-    private SpeciesDTO species;
+    private List<SpeciesDTO> species;
 
     @JsonProperty("time_interval")
     private String timeInterval;
@@ -77,21 +85,23 @@ public class VariableDetailsDTO extends BaseVariableDetailsDTO<VariableModel> {
 
     @JsonProperty("datatype")
     private URI dataType;
-
-
+    
     public VariableDetailsDTO(VariableModel model) {
         super(model);
 
         EntityModel entity = model.getEntity();
         this.entity = new EntityGetDTO(entity);
-
+        
+        InterestEntityModel entityOfInterest = model.getEntityOfInterest();
+        if(entityOfInterest != null){
+            this.entityOfInterest = new InterestEntityGetDTO(entityOfInterest);
+        }
+        
         CharacteristicModel characteristic = model.getCharacteristic();
         this.characteristic = new CharacteristicGetDTO(characteristic);
 
         MethodModel method = model.getMethod();
-        if(method != null) {
-            this.method = new MethodGetDTO(method);
-        }
+        this.method = new MethodGetDTO(method);
 
         UnitModel unit = model.getUnit();
         this.unit = new UnitGetDTO(unit);
@@ -99,7 +109,11 @@ public class VariableDetailsDTO extends BaseVariableDetailsDTO<VariableModel> {
         this.alternativeName = model.getAlternativeName();
 
         if(model.getSpecies() != null){
-            this.species = SpeciesDTO.fromModel(model.getSpecies());
+            List<SpeciesDTO> dtos = new ArrayList<>();
+            for (SpeciesModel species : model.getSpecies()){
+                dtos.add(SpeciesDTO.fromModel(species));
+            }
+            this.species = dtos;
         }
 
         this.timeInterval = model.getTimeInterval();
@@ -119,11 +133,13 @@ public class VariableDetailsDTO extends BaseVariableDetailsDTO<VariableModel> {
     public VariableDetailsDTO() {
     }
 
+    @Override
     @ApiModelProperty(example = "http://opensilex.dev/set/variables/Plant_Height")
     public URI getUri() {
         return uri;
     }
 
+    @Override
     @ApiModelProperty(example = "Plant_Height")
     public String getName() {
         return name;
@@ -138,6 +154,7 @@ public class VariableDetailsDTO extends BaseVariableDetailsDTO<VariableModel> {
         this.alternativeName = alternativeName;
     }
 
+    @Override
     @ApiModelProperty(example = "Describe the height of a plant.")
     public String getDescription() {
         return description;
@@ -148,7 +165,13 @@ public class VariableDetailsDTO extends BaseVariableDetailsDTO<VariableModel> {
     public void setEntity(EntityGetDTO entity) {
         this.entity = entity;
     }
-
+    
+    public InterestEntityGetDTO getEntityOfInterest() { return entityOfInterest; }
+    
+    public void setEntityOfInterest(InterestEntityGetDTO  entityOfInterest){
+        this.entityOfInterest = entityOfInterest;
+    }
+    
     public CharacteristicGetDTO getCharacteristic() {
         return characteristic;
     }
@@ -221,11 +244,11 @@ public class VariableDetailsDTO extends BaseVariableDetailsDTO<VariableModel> {
 
     @ValidURI
     @ApiModelProperty(notes = "Species associated with the variable", example = GermplasmAPI.GERMPLASM_EXAMPLE_SPECIES)
-    public SpeciesDTO getSpecies() {
+    public List<SpeciesDTO> getSpecies() {
         return species;
     }
 
-    public void setSpecies(SpeciesDTO species) {
+    public void setSpecies(List<SpeciesDTO> species) {
         this.species = species;
     }
 

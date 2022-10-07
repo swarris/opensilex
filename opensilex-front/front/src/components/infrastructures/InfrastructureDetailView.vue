@@ -4,6 +4,7 @@
       icon="ik#ik-globe"
       :title="selected.name"
       :description="selected.rdf_type_name"
+      class="detail-element-header"
     ></opensilex-PageHeader>
     <opensilex-PageActions :tabs="false" :returnButton="true">
     </opensilex-PageActions>
@@ -14,24 +15,21 @@
           :selected="selected"
           :withActions="true"
           @onDelete="deleteInfrastructure"
-          @refresh="refresh"
+          @onUpdate="refresh"
         ></opensilex-InfrastructureDetail>
       </div>
       <div class="col-md-6">
         <!-- Infrastructure facilities -->
-        <opensilex-InfrastructureFacilitiesView
+        <opensilex-FacilitiesView
+          :facilities="selected.facilities"
+          :organization="selected"
           :selected="selected"
+          :withActions="true"
+          :isSelectable="false"
           @onUpdate="refresh"
           @onCreate="refresh"
           @onDelete="refresh"
-        ></opensilex-InfrastructureFacilitiesView>
-        <!-- Infrastructure groups -->
-        <opensilex-InfrastructureGroupsView
-          :selected="selected"
-          @onUpdate="refresh"
-          @onCreate="refresh"
-          @onDelete="refresh"
-        ></opensilex-InfrastructureGroupsView>
+        ></opensilex-FacilitiesView>
       </div>
     </div>
   </div>
@@ -48,14 +46,14 @@ import { InfrastructureGetDTO } from "opensilex-core/index";
 export default class InfrastructureDetailView extends Vue {
   $opensilex: any;
 
-  selected = null;
+  selected: InfrastructureGetDTO = null;
   uri = null;
   service;
 
   created() {
     this.uri = decodeURIComponent(this.$route.params.uri);
     this.service = this.$opensilex.getService(
-      "opensilex-core.OrganisationsService"
+      "opensilex-core.OrganizationsService"
     );
     this.refresh();
   }

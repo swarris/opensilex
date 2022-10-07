@@ -10,62 +10,77 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.mongodb.MongoWriteException;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.model.geojson.Geometry;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
-
-import java.time.Duration;
-import java.time.Instant;
-import java.util.*;
-import javax.ws.rs.Consumes;
-import javax.ws.rs.DELETE;
-import javax.ws.rs.DefaultValue;
-import javax.ws.rs.GET;
-import javax.ws.rs.POST;
-import javax.ws.rs.PUT;
-import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.Produces;
-import javax.ws.rs.QueryParam;
-
+import io.swagger.annotations.*;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
+import org.apache.jena.arq.querybuilder.SelectBuilder;
+import org.apache.jena.arq.querybuilder.UpdateBuilder;
 import org.apache.jena.ext.com.google.common.cache.Cache;
 import org.apache.jena.ext.com.google.common.cache.CacheBuilder;
+import org.apache.jena.graph.Node;
+import org.apache.jena.vocabulary.RDF;
+import org.apache.jena.vocabulary.RDFS;
 import org.bson.codecs.configuration.CodecConfigurationException;
 import org.glassfish.jersey.media.multipart.FormDataContentDisposition;
 import org.glassfish.jersey.media.multipart.FormDataParam;
+import org.locationtech.jts.io.ParseException;
+import org.opensilex.core.csv.api.CSVValidationDTO;
+import org.opensilex.core.csv.dal.AbstractCsvDao;
+import org.opensilex.server.exceptions.displayable.DisplayableBadRequestException;
+import org.opensilex.sparql.csv.CSVCell;
+import org.opensilex.core.csv.dal.CsvDao;
+import org.opensilex.core.csv.dal.DefaultCsvDao;
+import org.opensilex.sparql.csv.CSVValidationModel;
+import org.opensilex.core.data.dal.DataDAO;
+import org.opensilex.core.event.dal.move.MoveEventDAO;
+import org.opensilex.core.event.dal.move.MoveModel;
 import org.opensilex.core.exception.DuplicateNameException;
 import org.opensilex.core.exception.DuplicateNameListException;
 import org.opensilex.core.experiment.api.ExperimentAPI;
+import org.opensilex.core.experiment.dal.ExperimentDAO;
+import org.opensilex.core.experiment.dal.ExperimentModel;
+import org.opensilex.core.experiment.factor.dal.FactorLevelModel;
+import org.opensilex.core.experiment.factor.dal.FactorModel;
 import org.opensilex.core.geospatial.dal.GeospatialDAO;
 import org.opensilex.core.geospatial.dal.GeospatialModel;
-import org.opensilex.core.ontology.api.CSVValidationDTO;
-import org.opensilex.core.ontology.dal.CSVValidationModel;
+import org.opensilex.core.ontology.Oeso;
+import org.opensilex.core.organisation.dal.InfrastructureFacilityModel;
+import org.opensilex.core.provenance.api.ProvenanceGetDTO;
+import org.opensilex.core.provenance.dal.ProvenanceModel;
 import org.opensilex.core.scientificObject.dal.ScientificObjectDAO;
 import org.opensilex.core.scientificObject.dal.ScientificObjectModel;
 import org.opensilex.core.scientificObject.dal.ScientificObjectSearchFilter;
+import org.opensilex.core.variable.dal.VariableModel;
+import org.opensilex.nosql.mongodb.MongoDBService;
 import org.opensilex.security.authentication.ApiCredential;
 import org.opensilex.security.authentication.ApiCredentialGroup;
 import org.opensilex.security.authentication.ApiProtected;
+import org.opensilex.security.authentication.NotFoundURIException;
 import org.opensilex.security.authentication.injection.CurrentUser;
 import org.opensilex.security.user.dal.UserModel;
-import org.opensilex.server.response.ErrorResponse;
-import org.opensilex.server.response.ObjectUriResponse;
-import org.opensilex.server.response.PaginatedListResponse;
-import org.opensilex.server.response.SingleObjectResponse;
+import org.opensilex.server.response.*;
+import org.opensilex.server.rest.validation.Date;
+import org.opensilex.server.rest.validation.DateFormat;
 import org.opensilex.server.rest.validation.ValidURI;
 import org.opensilex.sparql.deserializer.SPARQLDeserializers;
+import org.opensilex.sparql.deserializer.URIDeserializer;
+import org.opensilex.sparql.model.SPARQLNamedResourceModel;
 import org.opensilex.sparql.model.SPARQLResourceModel;
+import org.opensilex.sparql.response.NamedResourceDTO;
+import org.opensilex.sparql.service.SPARQLQueryHelper;
 import org.opensilex.sparql.service.SPARQLService;
+import org.opensilex.sparql.utils.Ontology;
 import org.opensilex.utils.ListWithPagination;
+import org.opensilex.utils.OrderBy;
 import org.opensilex.utils.TokenGenerator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
 import javax.validation.Valid;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotNull;
+import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
@@ -73,63 +88,15 @@ import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
-
-import org.apache.jena.arq.querybuilder.SelectBuilder;
-import org.apache.jena.arq.querybuilder.UpdateBuilder;
-import org.apache.jena.graph.Node;
-import org.apache.jena.sparql.expr.Expr;
-import org.apache.jena.vocabulary.RDF;
-import org.apache.jena.vocabulary.RDFS;
-import org.locationtech.jts.io.ParseException;
-import org.opensilex.core.data.dal.DataDAO;
-import org.opensilex.core.event.dal.move.MoveEventDAO;
-import org.opensilex.core.event.dal.move.MoveModel;
-import org.opensilex.core.scientificObject.dal.ScientificObjectModel;
-import org.opensilex.core.experiment.dal.ExperimentDAO;
-import org.opensilex.core.experiment.dal.ExperimentModel;
-import org.opensilex.core.experiment.factor.dal.FactorLevelModel;
-import org.opensilex.core.experiment.factor.dal.FactorLevelDAO;
-import org.opensilex.core.experiment.factor.dal.FactorModel;
-import org.opensilex.core.germplasm.dal.GermplasmDAO;
-import org.opensilex.core.ontology.Oeso;
-import org.opensilex.core.ontology.dal.CSVCell;
-import org.opensilex.core.ontology.dal.OntologyDAO;
-import org.opensilex.core.organisation.dal.InfrastructureFacilityModel;
-import org.opensilex.core.provenance.api.ProvenanceGetDTO;
-import org.opensilex.core.provenance.dal.ProvenanceModel;
-import org.opensilex.core.scientificObject.dal.ScientificObjectURIGenerator;
-import org.opensilex.core.species.dal.SpeciesModel;
-import org.opensilex.core.variable.dal.VariableModel;
-import org.opensilex.nosql.mongodb.MongoDBService;
-import org.opensilex.security.authentication.NotFoundURIException;
-import org.opensilex.server.exceptions.ForbiddenException;
-import org.opensilex.server.response.ListItemDTO;
-import org.opensilex.server.rest.validation.DateFormat;
-import org.opensilex.server.rest.validation.Date;
-import org.opensilex.sparql.deserializer.URIDeserializer;
-import org.opensilex.sparql.model.SPARQLNamedResourceModel;
-import org.opensilex.sparql.response.NamedResourceDTO;
-import org.opensilex.sparql.service.SPARQLQueryHelper;
-import org.opensilex.sparql.utils.Ontology;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.opensilex.utils.OrderBy;
-
 
 /**
  * @author Julien BONNEFONT
@@ -146,14 +113,13 @@ public class ScientificObjectAPI {
     public static final String CREDENTIAL_SCIENTIFIC_OBJECT_GROUP_LABEL_KEY = "credential-groups.scientific-objects";
 
     public static final String CREDENTIAL_SCIENTIFIC_OBJECT_MODIFICATION_ID = "scientific-objects-modification";
-    public static final String CREDENTIAL_SCIENTIFIC_OBJECT_MODIFICATION_LABEL_KEY = "credential.scientific-objects.modification";
+    public static final String CREDENTIAL_SCIENTIFIC_OBJECT_MODIFICATION_LABEL_KEY = "credential.default.modification";
 
     public static final String CREDENTIAL_SCIENTIFIC_OBJECT_DELETE_ID = "scientific-objects-delete";
-    public static final String CREDENTIAL_SCIENTIFIC_OBJECT_DELETE_LABEL_KEY = "credential.scientific-objects.delete";
+    public static final String CREDENTIAL_SCIENTIFIC_OBJECT_DELETE_LABEL_KEY = "credential.default.delete";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ScientificObjectAPI.class);
 
-    public static final String GEOMETRY_COLUMN_ID = "geometry";
     public static final String INVALID_GEOMETRY = "Invalid geometry (longitude must be between -180 and 180 and latitude must be between -90 and 90, no self-intersection, ...)";
 
     public static final String SCIENTIFIC_OBJECT_EXAMPLE_URI = "http://opensilex.org/id/Plot 12";
@@ -224,8 +190,12 @@ public class ScientificObjectAPI {
             Node context = SPARQLDeserializers.nodeURI(experimentURI);
             select.addGraph(context, "?uri", RDF.type, "?type");
         } else if (!currentUser.isAdmin()) {
-            ExperimentDAO xpDO = new ExperimentDAO(sparql);
+            ExperimentDAO xpDO = new ExperimentDAO(sparql, nosql);
             Set<URI> graphFilterURIs = xpDO.getUserExperiments(currentUser);
+
+            if (graphFilterURIs.isEmpty()) {
+                return new PaginatedListResponse<>(new ArrayList<>()).getResponse();
+            }
 
             select.addGraph("?g", "?uri", RDF.type, "?type");
             select.addFilter(SPARQLQueryHelper.inURIFilter("?g", graphFilterURIs));
@@ -235,7 +205,7 @@ public class ScientificObjectAPI {
         select.setDistinct(true);
         select.addWhere("?type", Ontology.subClassStrict, Oeso.ScientificObject);
         select.addWhere("?type", RDFS.label, "?label");
-        select.addFilter(SPARQLQueryHelper.langFilter("label", currentUser.getLanguage()));
+        select.addFilter(SPARQLQueryHelper.langFilterWithDefault("label", currentUser.getLanguage()));
 
         List<ListItemDTO> types = new ArrayList<>();
 
@@ -386,7 +356,7 @@ public class ScientificObjectAPI {
 
         if (contextURI != null) {
             if (sparql.uriExists(ExperimentModel.class, contextURI)) {
-                ExperimentDAO xpDAO = new ExperimentDAO(sparql);
+                ExperimentDAO xpDAO = new ExperimentDAO(sparql, nosql);
                 xpDAO.validateExperimentAccess(contextURI, currentUser);
             } else {
                 throw new NotFoundURIException("Experiment URI not found:", contextURI);
@@ -513,27 +483,36 @@ public class ScientificObjectAPI {
             @Valid ScientificObjectCreationDTO descriptionDto
     ) throws Exception {
 
+        ScientificObjectDAO dao = new ScientificObjectDAO(sparql, nosql);
+        GeospatialDAO geoDAO = new GeospatialDAO(nosql);
+        ExperimentDAO experimentDAO = new ExperimentDAO(sparql, nosql);
+
         URI contextURI = descriptionDto.getExperiment();
+        ExperimentModel experiment = null;
         validateContextAccess(contextURI);
 
         URI globalScientificObjectGraph = sparql.getDefaultGraphURI(ScientificObjectModel.class);
         boolean globalCopy = false;
-        URI generationPrefixURI = contextURI;
         if (contextURI == null) {
             contextURI = globalScientificObjectGraph;
-            generationPrefixURI = sparql.getDefaultGenerationURI(ScientificObjectModel.class);
         } else {
             globalCopy = true;
+            experiment = experimentDAO.get(contextURI, currentUser);
+            if(experiment == null){
+                throw new NotFoundURIException("Unknown experiment",contextURI);
+            }
         }
 
         URI soType = descriptionDto.getType();
 
-        ScientificObjectDAO dao = new ScientificObjectDAO(sparql, nosql);
-        GeospatialDAO geoDAO = new GeospatialDAO(nosql);
-
         sparql.startTransaction();
         try {
-            URI soURI = dao.create(contextURI, generationPrefixURI, soType, descriptionDto.getUri(), descriptionDto.getName(), descriptionDto.getRelations(), currentUser);
+            ScientificObjectModel so = dao.create(contextURI, experiment, soType, descriptionDto.getUri(), descriptionDto.getName(), descriptionDto.getRelations(), currentUser);
+            URI soURI = so.getUri();
+
+            if (experiment != null) {
+                experimentDAO.updateExperimentSpeciesFromScientificObjects(contextURI);
+            }
 
             Node graphNode = SPARQLDeserializers.nodeURI(globalScientificObjectGraph);
             if (globalCopy && !sparql.uriExists(graphNode, soURI)) {
@@ -600,6 +579,7 @@ public class ScientificObjectAPI {
 
         URI contextURI = descriptionDto.getExperiment();
         validateContextAccess(contextURI);
+        boolean hasExperiment = contextURI != null;
         if (contextURI == null) {
             contextURI = sparql.getDefaultGraphURI(ScientificObjectModel.class);
         }
@@ -607,12 +587,17 @@ public class ScientificObjectAPI {
 
         ScientificObjectDAO dao = new ScientificObjectDAO(sparql, nosql);
         GeospatialDAO geoDAO = new GeospatialDAO(nosql);
+        ExperimentDAO experimentDAO = new ExperimentDAO(sparql, nosql);
 
         nosql.startTransaction();
         sparql.startTransaction();
         try {
 
             URI soURI = dao.update(contextURI, soType, descriptionDto.getUri(), descriptionDto.getName(), descriptionDto.getRelations(), currentUser);
+
+            if (hasExperiment) {
+                experimentDAO.updateExperimentSpeciesFromScientificObjects(contextURI);
+            }
 
             if (descriptionDto.getGeometry() != null) {
                 GeospatialModel geospatialModel = new GeospatialModel();
@@ -648,6 +633,14 @@ public class ScientificObjectAPI {
         }
     }
 
+    private static final String DELETE_ERROR_TITLE ="Scientific object can't be deleted";
+
+    /**
+     * Name of the parameter used into translate-key about scientific object deletion error.
+     * This key is related to message-en.yml and message-fr.yml translation files (located in opensilex-front)
+     */
+    private static final String DELETE_ERROR_KEY_PARAMETER ="scientific_object";
+
     @DELETE
     @Path("{uri}")
     @ApiOperation("Delete a scientific object")
@@ -660,6 +653,7 @@ public class ScientificObjectAPI {
     @Produces(MediaType.APPLICATION_JSON)
     @ApiResponses(value = {
             @ApiResponse(code = 200, message = "Scientific object deleted", response = ObjectUriResponse.class),
+            @ApiResponse(code = 400, message = DELETE_ERROR_TITLE+ " (If object is involved into an experiment or if associated to any data)", response = ErrorDTO.class),
             @ApiResponse(code = 404, message = "Scientific object URI not found", response = ErrorResponse.class)
     })
     public Response deleteScientificObject(
@@ -671,19 +665,65 @@ public class ScientificObjectAPI {
 
         validateContextAccess(contextURI);
 
-        ScientificObjectDAO dao = new ScientificObjectDAO(sparql, nosql);
-
+        ScientificObjectDAO scientificObjectDAO = new ScientificObjectDAO(sparql, nosql);
         GeospatialDAO geoDAO = new GeospatialDAO(nosql);
+        ExperimentDAO experimentDAO = new ExperimentDAO(sparql, nosql);
+        DataDAO dataDAO = new DataDAO(nosql,sparql,null);
 
         nosql.startTransaction();
         sparql.startTransaction();
         try {
-            if (contextURI == null) {
-                sparql.deleteByURI(sparql.getDefaultGraph(ScientificObjectModel.class), objectURI);
-            } else {
-                dao.delete(contextURI, objectURI);
+            List<URI> xpList;
+            List<URI> osList = Collections.singletonList(objectURI);
+            boolean global = contextURI == null;
+
+            if (global) {
+                // global OS suppression -> ensure that the OS is not used into any experiment
+                if (scientificObjectDAO.isInvolvedIntoAnyExperiment(osList.stream(), osList.size())) {
+                    throw new DisplayableBadRequestException(DELETE_ERROR_TITLE+" : object is used into an experiment",
+                            "component.scientificObjects.error.delete.used-in-experiment",
+                            Collections.singletonMap(DELETE_ERROR_KEY_PARAMETER,objectURI.toString())
+                    );
+                }
+                // set empty list to pass to DataDao count and countFiles
+                xpList = Collections.emptyList();
+            }else{
+                // check that the OS has no children
+                if (scientificObjectDAO.hasChildren(contextURI, osList.stream(), osList.size())) {
+                    throw new DisplayableBadRequestException(DELETE_ERROR_TITLE+" : object has child",
+                            "component.scientificObjects.error.delete.has-child",
+                            Collections.singletonMap(DELETE_ERROR_KEY_PARAMETER,objectURI.toString())
+                    );
+                }
+                // set list composed of the experiment, to pass to DataDao count and countFiles
+                xpList = Collections.singletonList(contextURI);
             }
+
+            // check that no data are associated (dao handle empty or not list)
+            int dataCount = dataDAO.count(null,xpList, osList,null,null,null,null,null,null,null,null);
+            if(dataCount > 0){
+                throw new DisplayableBadRequestException(DELETE_ERROR_TITLE+" : object has associated data",
+                        "component.scientificObjects.error.delete.associated-data",
+                        Collections.singletonMap(DELETE_ERROR_KEY_PARAMETER, objectURI.toString())
+                );
+            }
+
+            // check that no data file are associated (dao handle empty or not list)
+            int dataFileCount = dataDAO.countFiles(null,null,xpList,osList,null,null,null,null,null);
+            if(dataFileCount > 0){
+                throw new DisplayableBadRequestException(DELETE_ERROR_TITLE+" : object has associated data files",
+                        "component.scientificObjects.error.delete.associated-data-files",
+                        Collections.singletonMap(DELETE_ERROR_KEY_PARAMETER, objectURI.toString())
+                );
+            }
+
+            // delete OS and OS geometry (dao handle null or not null contextURI)
+            scientificObjectDAO.delete(contextURI,objectURI);
             geoDAO.delete(objectURI, contextURI);
+
+            if(!global){
+                experimentDAO.updateExperimentSpeciesFromScientificObjects(contextURI);
+            }
 
             sparql.commitTransaction();
             nosql.commitTransaction();
@@ -742,8 +782,10 @@ public class ScientificObjectAPI {
         }
 
         CSVValidationDTO csvValidation = new CSVValidationDTO();
-
         csvValidation.setErrors(errors);
+
+        ScientificObjectDAO dao = new ScientificObjectDAO(sparql,nosql);
+        ExperimentDAO experimentDAO = new ExperimentDAO(sparql, nosql);
 
         final URI graphURI;
         if (insertIntoSomeXp) {
@@ -751,99 +793,80 @@ public class ScientificObjectAPI {
         } else {
             graphURI = sparql.getDefaultGraphURI(ScientificObjectModel.class);
         }
-        if (!errors.hasErrors()) {
-            Map<Integer, Geometry> geometries = (Map<Integer, Geometry>) errors.getObjectsMetadata().get(GEOMETRY_COLUMN_ID);
-            if (geometries != null && geometries.size() > 0) {
-                GeospatialDAO geoDAO = new GeospatialDAO(nosql);
 
-                nosql.startTransaction();
-                sparql.startTransaction();
-                List<SPARQLNamedResourceModel> objects = errors.getObjects();
-
-                try {
-                    sparql.create(SPARQLDeserializers.nodeURI(graphURI), objects);
-
-                    MoveEventDAO moveDAO = new MoveEventDAO(sparql, nosql);
-                    for (SPARQLNamedResourceModel object : objects) {
-                        MoveModel facilityMoveEvent = new MoveModel();
-                        if (ScientificObjectDAO.fillFacilityMoveEvent(facilityMoveEvent, object)) {
-                            moveDAO.create(facilityMoveEvent);
-                        }
-                        sparql.deletePrimitives(SPARQLDeserializers.nodeURI(graphURI), object.getUri(), Oeso.hasFacility);
-                    }
-                    if (globalCopy) {
-                        UpdateBuilder update = new UpdateBuilder();
-                        boolean hasUpdateItem = false;
-                        Node graphNode = SPARQLDeserializers.nodeURI(sparql.getDefaultGraphURI(ScientificObjectModel.class));
-                        for (SPARQLNamedResourceModel object : objects) {
-                            if (!sparql.uriExists(graphNode, object.getUri())) {
-                                Node soNode = SPARQLDeserializers.nodeURI(object.getUri());
-                                update.addInsert(graphNode, soNode, RDF.type, SPARQLDeserializers.nodeURI(object.getType()));
-                                update.addInsert(graphNode, soNode, RDFS.label, object.getName());
-                                hasUpdateItem = true;
-                            }
-
-                        }
-
-                        if (hasUpdateItem) {
-                            sparql.executeUpdateQuery(update);
-                        }
-                    }
-
-                    List<GeospatialModel> geospatialModels = new ArrayList<>();
-                    geometries.forEach((rowIndex, geometry) -> {
-                        SPARQLNamedResourceModel<?> object = objects.get(rowIndex - 1);
-                        if (object instanceof SPARQLNamedResourceModel) {
-                            GeospatialModel geospatialModel = new GeospatialModel();
-                            geospatialModel.setUri(object.getUri());
-                            geospatialModel.setName(object.getName());
-                            geospatialModel.setRdfType(object.getType());
-                            geospatialModel.setGraph(graphURI);
-                            geospatialModel.setGeometry(geometry);
-                            geospatialModels.add(geospatialModel);
-                        } else {
-                            throw new IllegalArgumentException();
-                        }
-                    });
-
-                    geoDAO.createAll(geospatialModels);
-                    sparql.commitTransaction();
-                    nosql.commitTransaction();
-
-                }catch (Exception e) {
-                    nosql.rollbackTransaction();
-                    sparql.rollbackTransaction(e);
-                }
-            } else {
-
-                List<SPARQLNamedResourceModel> objects = errors.getObjects();
-                sparql.create(SPARQLDeserializers.nodeURI(graphURI), objects);
-
-                MoveEventDAO moveDAO = new MoveEventDAO(sparql, nosql);
-                for (SPARQLNamedResourceModel object : objects) {
-                    MoveModel facilityMoveEvent = new MoveModel();
-                    if (ScientificObjectDAO.fillFacilityMoveEvent(facilityMoveEvent, object)) {
-                        moveDAO.create(facilityMoveEvent);
-                    }
-                    sparql.deletePrimitives(SPARQLDeserializers.nodeURI(graphURI), object.getUri(), Oeso.hasFacility);
-                }
-                if (globalCopy) {
-                    UpdateBuilder update = new UpdateBuilder();
-                    Node graphNode = SPARQLDeserializers.nodeURI(sparql.getDefaultGraphURI(ScientificObjectModel.class));
-                    for (SPARQLNamedResourceModel object : objects) {
-                        Node soNode = SPARQLDeserializers.nodeURI(object.getUri());
-                        update.addInsert(graphNode, soNode, RDF.type, SPARQLDeserializers.nodeURI(object.getType()));
-                        update.addInsert(graphNode, soNode, RDFS.label, object.getName());
-
-                    }
-                    sparql.executeUpdateQuery(update);
-                }
-            }
-
-            csvValidation.setNbLinesImported(errors.getObjects().size());
-            csvValidation.setValidationToken("done");
+        if(errors.hasErrors()){
+            return new SingleObjectResponse<>(csvValidation).getResponse();
         }
 
+        // start transaction, since multiple operations on triple store are performed
+        // objects creation, first moves creations, experiment species update
+        sparql.startTransaction();
+
+        // start transaction since geometry or move can involve mongodb
+        nosql.startTransaction();
+
+        Map<Integer, Geometry> geometries = (Map<Integer, Geometry>) errors.getObjectsMetadata().get(Oeso.hasGeometry.toString());
+        boolean hasGeometry = ! MapUtils.isEmpty(geometries);
+        GeospatialDAO geoDAO = new GeospatialDAO(nosql);
+
+        try {
+            List<ScientificObjectModel> models = (List<ScientificObjectModel>) (List<?>) errors.getObjects();
+            dao.create(models, graphURI);
+
+            // #TODO avoid to running n INSERT, use one INSERT with all move
+            MoveEventDAO moveDAO = new MoveEventDAO(sparql, nosql);
+            for (SPARQLNamedResourceModel object : models) {
+                MoveModel facilityMoveEvent = new MoveModel();
+                if (ScientificObjectDAO.fillFacilityMoveEvent(facilityMoveEvent, object)) {
+                    moveDAO.create(facilityMoveEvent);
+                }
+                // #TODO avoid to running n DELETE query, use one DELETE
+                sparql.deletePrimitives(SPARQLDeserializers.nodeURI(graphURI), object.getUri(), Oeso.isHosted);
+            }
+
+            if (globalCopy) {
+                UpdateBuilder update = new UpdateBuilder();
+                Node graphNode = SPARQLDeserializers.nodeURI(sparql.getDefaultGraphURI(ScientificObjectModel.class));
+                for (SPARQLNamedResourceModel object : models) {
+                    Node soNode = SPARQLDeserializers.nodeURI(object.getUri());
+                    update.addInsert(graphNode, soNode, RDF.type, SPARQLDeserializers.nodeURI(object.getType()));
+                    update.addInsert(graphNode, soNode, RDFS.label, object.getName());
+                }
+                sparql.executeUpdateQuery(update);
+            }
+
+            //Update experiment
+            if (insertIntoSomeXp) {
+                experimentDAO.updateExperimentSpeciesFromScientificObjects(contextURI);
+            }
+
+            if(hasGeometry){
+                List<GeospatialModel> geospatialModels = new ArrayList<>();
+                geometries.forEach((rowIndex, geometry) -> {
+                    SPARQLNamedResourceModel<?> object = models.get(rowIndex - 1);
+                    GeospatialModel geospatialModel = new GeospatialModel();
+                    geospatialModel.setUri(object.getUri());
+                    geospatialModel.setName(object.getName());
+                    geospatialModel.setRdfType(object.getType());
+                    geospatialModel.setGraph(graphURI);
+                    geospatialModel.setGeometry(geometry);
+                    geospatialModels.add(geospatialModel);
+                });
+
+                geoDAO.createAll(geospatialModels);
+                nosql.commitTransaction();
+            }
+
+            sparql.commitTransaction();
+
+        }catch (Exception e) {
+            nosql.rollbackTransaction();
+            sparql.rollbackTransaction(e);
+        }
+
+        csvValidation.setNbLinesImported(errors.getObjects().size());
+        String token = TokenGenerator.getValidationToken(5, ChronoUnit.MINUTES, Collections.emptyMap());
+        csvValidation.setValidationToken(token);
         return new SingleObjectResponse<>(csvValidation).getResponse();
     }
 
@@ -856,10 +879,12 @@ public class ScientificObjectAPI {
             String name = object.getName();
 
             if(existingUriByName.containsKey(name)) {
-                URI existingObjectWithSameName = existingUriByName.get(name);
-                String errorMsg = String.format(ScientificObjectDAO.NON_UNIQUE_NAME_ERROR_MSG, name,existingObjectWithSameName.toString());
+                URI duplicateObjectURI = existingUriByName.get(name);
 
-                CSVCell cell = new CSVCell(OntologyDAO.CSV_HEADER_ROWS_NB +i,OntologyDAO.CSV_NAME_INDEX,object.getName(),errorMsg);
+                // handle case where URI is null (in case of local duplicate with a non set URI)
+                String errorMsg = String.format(ScientificObjectDAO.NON_UNIQUE_NAME_ERROR_MSG, name, duplicateObjectURI == null ? "A new object " : duplicateObjectURI.toString());
+
+                CSVCell cell = new CSVCell(AbstractCsvDao.CSV_HEADER_ROWS_NB +i, AbstractCsvDao.CSV_NAME_INDEX,object.getName(),errorMsg);
                 validationModel.addInvalidValueError(cell);
             }
             i++;
@@ -867,23 +892,19 @@ public class ScientificObjectAPI {
     }
 
     private static final Set<String> columnsWhenNoExperiment = new HashSet<>(Arrays.asList(
-            OntologyDAO.CSV_URI_KEY,
-            OntologyDAO.CSV_TYPE_KEY,
-            OntologyDAO.CSV_NAME_KEY,
-            GEOMETRY_COLUMN_ID
+            AbstractCsvDao.CSV_URI_KEY,
+            AbstractCsvDao.CSV_TYPE_KEY,
+            AbstractCsvDao.CSV_NAME_KEY,
+            Oeso.hasGeometry.toString()
     ));
 
     @POST
     @Path("export")
     @ApiOperation("Export a given list of scientific object URIs to csv data file")
     @ApiResponses(value = {
-            @ApiResponse(code = 201, message = "Data file exported")
+            @ApiResponse(code = 200, message = "Data file exported")
     })
     @ApiProtected
-    @ApiCredential(
-            credentialId = CREDENTIAL_SCIENTIFIC_OBJECT_MODIFICATION_ID,
-            credentialLabelKey = CREDENTIAL_SCIENTIFIC_OBJECT_MODIFICATION_LABEL_KEY
-    )
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_OCTET_STREAM)
     public Response exportCSV(
@@ -893,7 +914,6 @@ public class ScientificObjectAPI {
         validateContextAccess(dto.getExperiment());
 
         ScientificObjectDAO soDao = new ScientificObjectDAO(sparql, nosql);
-        OntologyDAO ontologyDAO = new OntologyDAO(sparql);
         GeospatialDAO geoDAO = new GeospatialDAO(nosql);
         MoveEventDAO moveDAO = new MoveEventDAO(sparql, nosql);
 
@@ -926,9 +946,9 @@ public class ScientificObjectAPI {
             customColumns.add(Oeso.hasCreationDate.toString());
             customColumns.add(Oeso.hasDestructionDate.toString());
             customColumns.add(Oeso.hasFactorLevel.toString());
-            customColumns.add(Oeso.hasFacility.toString());
+            customColumns.add(Oeso.isHosted.toString());
         }
-        customColumns.add(GEOMETRY_COLUMN_ID);
+        customColumns.add(Oeso.hasGeometry.toString());
 
         // define how to write value for each selected column from header
         BiFunction<String, ScientificObjectModel, String> customValueGenerator = (columnID, value) -> {
@@ -958,14 +978,14 @@ public class ScientificObjectAPI {
                     // remove last space character
                     return sb.length() > 0 ? sb.substring(0,sb.length()-1) : sb.toString();
 
-                } else if (columnID.equals(Oeso.hasFacility.toString())) {
+                } else if (columnID.equals(Oeso.isHosted.toString())) {
                     if (arrivalFacilityByOs.containsKey(value.getUri())) {
                         return arrivalFacilityByOs.get(value.getUri()).toString();
                     }
                     return null;
                 }
             }
-            if (columnID.equals(GEOMETRY_COLUMN_ID)) {
+            if (columnID.equals(Oeso.hasGeometry.toString())) {
                 String uriString = value.getUri().toString();
                 if (geospatialMap.containsKey(uriString)) {
                     Geometry geo = geospatialMap.get(uriString);
@@ -982,7 +1002,10 @@ public class ScientificObjectAPI {
             }
 
         };
-        String csvContent = ontologyDAO.exportCSV(
+
+        CsvDao<ScientificObjectModel> csvDao = new DefaultCsvDao<>(sparql,ScientificObjectModel.class);
+
+        String csvContent = csvDao.exportCSV(
                 objects.getList(),
                 new URI(Oeso.ScientificObject.toString()),
                 currentUser.getLanguage(),
@@ -992,9 +1015,9 @@ public class ScientificObjectAPI {
                 (colId1, colId2) -> {
                     if (colId1.equals(colId2)) {
                         return 0;
-                    } else if (colId1.equals(GEOMETRY_COLUMN_ID)) {
+                    } else if (colId1.equals(Oeso.hasGeometry.toString())) {
                         return 1;
-                    } else if (colId2.equals(GEOMETRY_COLUMN_ID)) {
+                    } else if (colId2.equals(Oeso.hasGeometry.toString())) {
                         return -1;
                     } else {
                         return colId1.compareTo(colId2);
@@ -1046,15 +1069,11 @@ public class ScientificObjectAPI {
     private CSVValidationModel getCSVValidationModel(URI contextURI, InputStream file, UserModel currentUser) throws Exception {
         HashMap<String, BiConsumer<CSVCell, CSVValidationModel>> customValidators = new HashMap<>();
 
-        URI uriGenerationPrefix = contextURI;
         if (contextURI == null) {
             contextURI = sparql.getDefaultGraphURI(ScientificObjectModel.class);
-            uriGenerationPrefix = sparql.getDefaultGenerationURI(ScientificObjectModel.class);
         } else if (!sparql.uriExists(ExperimentModel.class, contextURI)) {
             throw new NotFoundURIException("Experiment URI not found:", contextURI);
         }
-
-        ScientificObjectURIGenerator uriGenerator = new ScientificObjectURIGenerator(uriGenerationPrefix);
 
         Map<String, List<CSVCell>> parentNamesToReplace = new HashMap<>();
         customValidators.put(Oeso.isPartOf.toString(), (cell, csvErrors) -> {
@@ -1069,7 +1088,7 @@ public class ScientificObjectAPI {
 
         if (sparql.uriExists(ExperimentModel.class, contextURI)) {
 
-            ExperimentDAO xpDAO = new ExperimentDAO(sparql);
+            ExperimentDAO xpDAO = new ExperimentDAO(sparql, nosql);
             xpDAO.validateExperimentAccess(contextURI, currentUser);
             ExperimentModel xp = sparql.getByURI(ExperimentModel.class, contextURI, currentUser.getLanguage());
 
@@ -1093,42 +1112,13 @@ public class ScientificObjectAPI {
                 }
             });
 
-            List<String> germplasmStringURIs = new ArrayList<>();
-            List<URI> germplasmURIs = new ArrayList<>();
-
-            for (SpeciesModel germplasm : xp.getSpecies()) {
-                germplasmStringURIs.add(SPARQLDeserializers.getExpandedURI(germplasm.getUri()));
-                germplasmURIs.add(germplasm.getUri());
-            }
-
-            if (germplasmURIs.size() > 0) {
-                GermplasmDAO dao = new GermplasmDAO(sparql, nosql);
-                List<URI> subSpecies = dao.getGermplasmURIsBySpecies(germplasmURIs, currentUser.getLanguage());
-                for (URI germplasmURI : subSpecies) {
-                    germplasmStringURIs.add(SPARQLDeserializers.getExpandedURI(germplasmURI));
-                }
-            }
-
-            customValidators.put(Oeso.hasGermplasm.toString(), (cell, csvErrors) -> {
-                try {
-                    if (!cell.getValue().isEmpty()) {
-                        String germplasmURI = SPARQLDeserializers.getExpandedURI(new URI(cell.getValue()));
-                        if (!germplasmStringURIs.contains(germplasmURI)) {
-                            csvErrors.addInvalidValueError(cell);
-                        }
-                    }
-                } catch (URISyntaxException ex) {
-                    csvErrors.addInvalidURIError(cell);
-                }
-            });
-
             List<String> facilityStringURIs = new ArrayList<>();
             List<InfrastructureFacilityModel> facilities = xpDAO.getAvailableFacilities(contextURI, currentUser);
             for (InfrastructureFacilityModel facility : facilities) {
                 facilityStringURIs.add(SPARQLDeserializers.getExpandedURI(facility.getUri()));
             }
 
-            customValidators.put(Oeso.hasFacility.toString(), (cell, csvErrors) -> {
+            customValidators.put(Oeso.isHosted.toString(), (cell, csvErrors) -> {
                 try {
                     if (!cell.getValue().isEmpty()) {
                         String facilityURI = SPARQLDeserializers.getExpandedURI(new URI(cell.getValue()));
@@ -1143,10 +1133,10 @@ public class ScientificObjectAPI {
         }
 
         List<String> customColumns = new ArrayList<>();
-        customColumns.add(GEOMETRY_COLUMN_ID);
+        customColumns.add(Oeso.hasGeometry.toString());
 
         Map<Integer, Geometry> geometries = new HashMap<>();
-        customValidators.put(GEOMETRY_COLUMN_ID, (cell, csvErrors) -> {
+        customValidators.put(Oeso.hasGeometry.toString(), (cell, csvErrors) -> {
             String wktGeometry = cell.getValue();
             if (wktGeometry != null && !wktGeometry.isEmpty()) {
                 try {
@@ -1158,10 +1148,10 @@ public class ScientificObjectAPI {
             }
         });
 
-        OntologyDAO ontologyDAO = new OntologyDAO(sparql);
+        CsvDao<ScientificObjectModel> csvDao = new DefaultCsvDao<>(sparql,ScientificObjectModel.class);
 
         int firstRow = 3;
-        CSVValidationModel validationResult = ontologyDAO.validateCSV(contextURI, new URI(Oeso.ScientificObject.getURI()), file, firstRow, currentUser, customValidators, customColumns, uriGenerator);
+        CSVValidationModel validationResult = csvDao.validateCSV(contextURI, new URI(Oeso.ScientificObject.getURI()), file, firstRow, currentUser.getLanguage(), customValidators, customColumns,false);
 
         if (!validationResult.hasErrors()) {
             URI partOfURI = new URI(Oeso.isPartOf.toString());
@@ -1187,12 +1177,12 @@ public class ScientificObjectAPI {
                 }
             });
 
-            validationResult.addObjectMetadata(GEOMETRY_COLUMN_ID, geometries);
+            validationResult.addObjectMetadata(Oeso.hasGeometry.toString(), geometries);
         }
 
         try{
             // check that names are unique into the experiment, throw a DuplicateNameListException if any conflict is found
-            new ScientificObjectDAO(sparql,nosql).checkUniqueNameByGraph(validationResult.getObjects(),contextURI);
+            new ScientificObjectDAO(sparql,nosql).checkUniqueNameByGraph((List<ScientificObjectModel>) (List<?>) validationResult.getObjects(),contextURI);
         }catch (DuplicateNameListException e){
             addDuplicateNameErrors(validationResult.getObjects(), validationResult, e.getExistingUriByName());
         }
@@ -1204,7 +1194,7 @@ public class ScientificObjectAPI {
         if (contextURI == null) {
             // INFO :  no need to validate with no context defined
         } else if (sparql.uriExists(ExperimentModel.class, contextURI)) {
-            ExperimentDAO xpDAO = new ExperimentDAO(sparql);
+            ExperimentDAO xpDAO = new ExperimentDAO(sparql, nosql);
 
             xpDAO.validateExperimentAccess(contextURI, currentUser);
         } else {
@@ -1214,7 +1204,7 @@ public class ScientificObjectAPI {
 
     private ExperimentModel getExperiment(URI experimentURI) throws Exception {
         if (sparql.uriExists(ExperimentModel.class, experimentURI)) {
-            ExperimentDAO xpDAO = new ExperimentDAO(sparql);
+            ExperimentDAO xpDAO = new ExperimentDAO(sparql, nosql);
 
             try {
                 ExperimentModel xp = xpDAO.get(experimentURI, currentUser);
@@ -1269,7 +1259,7 @@ public class ScientificObjectAPI {
     ) throws Exception {
 
         DataDAO dao = new DataDAO(nosql, sparql, null);
-        List<VariableModel> variables = dao.getUsedVariables(currentUser, null, Arrays.asList(uri), null);
+        List<VariableModel> variables = dao.getUsedVariables(currentUser, null, Arrays.asList(uri), null, null);
         List<NamedResourceDTO> dtoList = variables.stream().map(NamedResourceDTO::getDTOFromModel).collect(Collectors.toList());
         return new PaginatedListResponse<>(dtoList).getResponse();
 

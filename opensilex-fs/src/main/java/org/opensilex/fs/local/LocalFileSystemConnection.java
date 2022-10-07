@@ -12,9 +12,11 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import org.apache.commons.io.FileUtils;
 import org.opensilex.fs.service.FileStorageConnection;
 import org.opensilex.service.BaseService;
+import org.opensilex.service.ServiceDefaultDefinition;
 
 /**
  * Local filesystem connection for file storage service
@@ -22,6 +24,8 @@ import org.opensilex.service.BaseService;
  * @see org.opensilex.fs.service.FileStorageService
  * @author Vincent Migot
  */
+@ServiceDefaultDefinition(config = LocalFileSystemConfig.class)
+
 public class LocalFileSystemConnection extends BaseService implements FileStorageConnection {
 
     private final Path basePath;
@@ -35,6 +39,11 @@ public class LocalFileSystemConnection extends BaseService implements FileStorag
         super(null);
         this.basePath = basePath;
     }
+    
+       public LocalFileSystemConnection(LocalFileSystemConfig config) {
+        super(config);
+        this.basePath = Paths.get(config.basePath());
+    }
 
     public Path getBasePath() throws IOException {
         return this.basePath;
@@ -44,7 +53,11 @@ public class LocalFileSystemConnection extends BaseService implements FileStorag
         if (this.basePath == null) {
             return filePath;
         }
-        return this.basePath.resolve(filePath);
+        if (filePath.isAbsolute()) {
+            return filePath;
+        } else {
+            return this.basePath.resolve(filePath);
+        }
     }
 
     public File getAbsolutePathFile(Path path) throws IOException {

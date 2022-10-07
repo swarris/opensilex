@@ -1,5 +1,11 @@
 <template>
   <b-modal ref="modalRef" size="xl" :static="true">
+
+    <template v-slot:modal-title>
+      <i class="ik ik-search mr-1"></i>
+      {{ $t('component.project.filter-description') }}
+    </template>
+
     <template v-slot:modal-footer>
       <button
         type="button"
@@ -9,18 +15,24 @@
 
       <button
         type="button"
-        class="btn btn-primary"
+        class="btn greenThemeColor"
         v-on:click="hide(true)"
       >{{ $t('component.common.validateSelection') }}</button>
     </template>
 
-    <div class="card">
+    <div>
       <opensilex-VariableList
         ref="variableSelection"
-        :isSelectable="true"
         :noActions="true"
+        :pageSize="5"
         :maximumSelectedRows="maximumSelectedRows"
-        iconNumberOfSelectedRow="ik#ik-globe"
+        :withAssociatedData="withAssociatedData"
+        :experiment="experiment"
+        :objects="objects"
+        :devices="devices"
+        @select="$emit('select', $event)"
+        @unselect="$emit('unselect', $event)"
+        @selectall="$emit('selectall', $event)"
       ></opensilex-VariableList>
     </div>
   </b-modal>
@@ -29,36 +41,54 @@
 <script lang="ts">
 import { Component, Ref, Prop } from "vue-property-decorator";
 import Vue from "vue";
-import VariableList from "./VariableList.vue";
 
 @Component
 export default class VariableModalList extends Vue {
+
+  @Ref("variableSelection") readonly variableSelection!: any;
+  @Ref("modalRef") readonly modalRef!: any;
+
   @Prop()
   maximumSelectedRows;
 
-  @Ref("variableSelection") readonly variableSelection!: any;
+  @Prop()
+  withAssociatedData;
+
+  @Prop()
+  experiment;
+
+  @Prop()
+  objects;
+
+  @Prop()
+  devices;
 
   unSelect(row) {
     this.variableSelection.onItemUnselected(row);
   }
 
   show() {
-    let modalRef: any = this.$refs.modalRef;
-    modalRef.show();
+    this.modalRef.show();
   }
 
   hide(validate: boolean) {
-    let modalRef: any = this.$refs.modalRef;
-    modalRef.hide();
+    this.modalRef.hide();
 
     if (validate) {
       this.$emit("onValidate", this.variableSelection.getSelected());
+    } else {
+      this.$emit("onClose");
     }
+  }
+
+  refresh() {
+    this.variableSelection.refresh();
   }
 }
 </script>
 
 <style scoped >
+
 @media (min-width: 576px) {
   div >>> .modal-xl {
     max-width: 800px;

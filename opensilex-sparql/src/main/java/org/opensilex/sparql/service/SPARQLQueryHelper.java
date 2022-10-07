@@ -9,20 +9,22 @@ import java.net.URI;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jena.arq.querybuilder.*;
 import org.apache.jena.arq.querybuilder.clauses.WhereClause;
+import org.apache.jena.datatypes.xsd.XSDDatatype;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.sparql.core.Var;
-import org.apache.jena.sparql.expr.E_LogicalAnd;
-import org.apache.jena.sparql.expr.E_LogicalOr;
-import org.apache.jena.sparql.expr.E_Regex;
-import org.apache.jena.sparql.expr.E_Str;
-import org.apache.jena.sparql.expr.Expr;
-import org.apache.jena.sparql.expr.ExprVar;
-import org.apache.jena.sparql.expr.E_GreaterThanOrEqual;
-import org.apache.jena.sparql.expr.E_LessThanOrEqual;
+import org.apache.jena.sparql.core.mem.TupleSlot;
+import org.apache.jena.sparql.expr.*;
+import org.apache.jena.sparql.expr.aggregate.AggGroupConcat;
+import org.apache.jena.sparql.expr.aggregate.AggGroupConcatDistinct;
+import org.apache.jena.sparql.expr.aggregate.Aggregator;
+import org.apache.jena.sparql.expr.aggregate.AggregatorFactory;
+import org.apache.jena.sparql.lang.sparql_11.ParseException;
 import org.apache.jena.sparql.syntax.Element;
 import org.apache.jena.sparql.syntax.ElementGroup;
 import org.apache.jena.sparql.syntax.ElementNamedGraph;
+import org.opensilex.server.exceptions.displayable.DisplayableBadRequestException;
+import org.opensilex.server.exceptions.displayable.DisplayableResponseException;
 import org.opensilex.sparql.deserializer.*;
 
 import java.time.LocalDate;
@@ -30,19 +32,19 @@ import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Stream;
+import org.apache.jena.graph.Triple;
+import org.apache.jena.rdf.model.Property;
 
 import org.opensilex.utils.OrderBy;
+
+import javax.ws.rs.core.Response;
 
 /**
  * @author Vincent MIGOT
  */
 public class SPARQLQueryHelper {
 
-   
-   
     private SPARQLQueryHelper() {
     }
 
@@ -60,7 +62,25 @@ public class SPARQLQueryHelper {
         return regexFilter(exprFactory.str(exprFactory.asVar(varName)),regexPattern,null);
     }
 
-    public static Expr regexFilter(Expr expr, String regexPattern, String regexFlag) {
+    private static final String FORBIDDEN_SPARQL_REGEX_CHARACTERS = String.join(
+            " , ",
+            "(", ")", "[", "{", "\\", "*", "+"
+    );
+
+    /**
+     *
+     * @param varExpr Expr of the SPARQL variable on which the regex apply
+     * @param regexPattern REGEX pattern
+     * @param regexFlag the interpretation of the regular expression ( if null then the "i" flag is applied by default -> case-insensitive mode)
+     * @throws DisplayableBadRequestException if regexPattern is not a valid SPARQL regex
+     * @return an {@link Expr} which contains a REGEX filter on the provided SPARQL variable. Return null if regex pattern is null or empty
+     *
+     * @see <a href="https://www.w3.org/TR/rdf-sparql-query/#funcex-regex">SPARQL REGEX documentation</a>
+     * @see <a href="https://www.w3.org/TR/xpath-functions/#regex-syntax">REGEX syntax</a>
+     * @see <a href="https://www.w3.org/TR/xpath-functions/#flags">REGEX flags</a>
+     *
+     */
+    public static Expr regexFilter(Expr varExpr, String regexPattern, String regexFlag) {
         if (StringUtils.isEmpty(regexPattern)) {
             return null;
         }
@@ -68,7 +88,26 @@ public class SPARQLQueryHelper {
         if (regexFlag == null) {
             regexFlag = "i";
         }
-        return new E_Regex(expr, regexPattern, regexFlag);
+
+        try{
+            return new E_Regex(varExpr, regexPattern, regexFlag);
+        }catch (ExprEvalException e){
+
+            // Error which occurs with some regex not handled into SPARQL, wrap it with a more comprehensive error msg
+            // the translations are defined into message-en/message-fr files (opensilex-front)
+
+            Map<String,String> translationValues = new HashMap<>();
+            translationValues.put("__regex__",regexPattern);
+            translationValues.put("__forbidden_characters__", FORBIDDEN_SPARQL_REGEX_CHARACTERS);
+
+            throw new DisplayableResponseException(
+                    e.getMessage(),
+                    Response.Status.BAD_REQUEST,
+                    "Invalid REGEX",
+                    "component.common.errors.regex.invalid-regex",
+                    translationValues
+            );
+        }
     }
 
     public static Expr regexFilter(String varName, String regexPattern, String regexFlag) {
@@ -220,9 +259,30 @@ public class SPARQLQueryHelper {
         }
     }
 
-    public static Expr langFilter(String varName, String lang) {
-        return exprFactory.or(exprFactory.langMatches(exprFactory.lang(NodeFactory.createVariable(varName)), lang),
-                exprFactory.langMatches(exprFactory.lang(NodeFactory.createVariable(varName)), ""));
+    /**
+     * Constructs a lang filter on the variable. Also takes the default language if it exists (the filters keeps at
+     * most 2 values). Do not use this method if you want only one language.
+     *
+     * @see SPARQLQueryHelper#langFilter(Var, String)
+     *
+     * @param varName
+     * @param lang
+     * @return
+     */
+    public static Expr langFilterWithDefault(String varName, String lang) {
+        return exprFactory.or(langFilter(makeVar(varName), lang), langFilter(makeVar(varName), ""));
+    }
+
+    /**
+     * Constructs an exclusive lang filter on the variable. To filter the default language, use an empty String as the
+     * language parameter.
+     *
+     * @param var
+     * @param lang
+     * @return
+     */
+    public static Expr langFilter(Var var, String lang) {
+        return exprFactory.langMatches(exprFactory.lang(var), lang);
     }
 
     /**
@@ -267,7 +327,7 @@ public class SPARQLQueryHelper {
         addWhereUriValues(where,varName,values.stream(),values.size());
     }
 
-    public static void addWhereUriValues(WhereClause<?> where, String varName, Stream<URI> values, int size) {
+    public static void addWhereUriStringValues(WhereClause<?> where, String varName, Stream<String> values, boolean expandUri, int size) {
 
         if (size == 0){
             return;
@@ -277,10 +337,15 @@ public class SPARQLQueryHelper {
         Object[] nodes = new Node[size];
         AtomicInteger i = new AtomicInteger();
         values.forEach(uri -> {
-            nodes[i.getAndIncrement()] = SPARQLDeserializers.nodeURI(uri);
+            String expandedUri = expandUri ? URIDeserializer.getExpandedURI(uri) : uri;
+            nodes[i.getAndIncrement()] = NodeFactory.createURI(expandedUri);
         });
 
         where.addWhereValueVar(varName, nodes);
+    }
+
+    public static void addWhereUriValues(WhereClause<?> where, String varName, Stream<URI> values, int size) {
+        addWhereUriStringValues(where,varName,values.map(URI::toString),true,size);
     }
 
     /**
@@ -380,7 +445,7 @@ public class SPARQLQueryHelper {
         }
         return endDateExpr;
     }
-    
+
     /**
      * @param startDateVarName the name of the startDate variable , should not
      * be null if startDate is not null
@@ -424,7 +489,7 @@ public class SPARQLQueryHelper {
     public static Expr dateTimeRange(String startDateVarName, OffsetDateTime startDate, String endDateVarName, OffsetDateTime endDate) throws Exception {
         return dateRange(startDateVarName,startDate,endDateVarName,endDate,SPARQLDeserializers.getForClass(OffsetDateTime.class));
     }
-        
+
     /**
      * <pre>
      * INTERSECTION of interval( delimited by startDate / EndDate) AND the entity lifetime is not null
@@ -449,7 +514,7 @@ public class SPARQLQueryHelper {
         if (startDate == null || endDate == null) {
             return null;
         }
-        
+
         DateDeserializer dateDeserializer = new DateDeserializer();
         Node startVar = NodeFactory.createVariable(startDateVarName);
         Node endVar = NodeFactory.createVariable(endDateVarName);
@@ -463,13 +528,13 @@ public class SPARQLQueryHelper {
         Expr thirdExpr = exprFactory.and(exprFactory.le(startVar, dateDeserializer.getNode(endDate)), noEndDateExpr);
 
         return exprFactory.or(endDateExpr, thirdExpr);
-            
-        }
-       
-       
-    
-    
-       
+
+    }
+
+
+
+
+
     /**
      * <pre>
      * INTERSECTION of interval( delimited by startDate / EndDate) AND the EVENT lifetime is not null
@@ -483,16 +548,16 @@ public class SPARQLQueryHelper {
      * @param startDate the start  date filter
      * @param endDateVarName the name of the endDate variable corresponds to the end Event attribute
      * @param endDate the end date filter
-     * @return an Expr according the two given LocalDate and variable names null if startDate and endDate are both null 
+     * @return an Expr according the two given LocalDate and variable names null if startDate and endDate are both null
      * Ex:
      *  FILTER ( ( ( ! bound(?_start__timestamp) ) && ( ?_end__timestamp >= "2021-01-22T23:00:00Z"^^xsd:dateTime ) ) || ( bound(?_start__timestamp) && ( ?_end__timestamp >= "2021-01-22T23:00:00Z"^^xsd:dateTime ) ) )
      *
      */
     public static Expr eventsIntervalDateRange(String startDateVarName, OffsetDateTime startDate, String endDateVarName, OffsetDateTime endDate) throws SPARQLDeserializerNotFoundException, Exception {
         if (startDate == null && endDate == null) {
-              return null;
-          }
-            
+            return null;
+        }
+
         SPARQLDeserializer<?> dateDeserializer = SPARQLDeserializers.getForClass(OffsetDateTime.class);
         Node startVar = NodeFactory.createVariable(startDateVarName);
         Node endVar = NodeFactory.createVariable(endDateVarName);
@@ -505,9 +570,9 @@ public class SPARQLQueryHelper {
             Expr noInstantDateExpr = exprFactory.bound(startVar);
             Expr noInstantRangeExpr = exprFactory.le(startVar, dateDeserializer.getNode(endDate));
             Expr completeNoInstantExpr = exprFactory.and(noInstantDateExpr, noInstantRangeExpr);
-             
-           return exprFactory.or(completeInstantExpr, completeNoInstantExpr);
-        // No Event begin (instant Event) AND (endVar > startDate )    OR   Event begin AND ( startDate <endVar )    
+
+            return exprFactory.or(completeInstantExpr, completeNoInstantExpr);
+            // No Event begin (instant Event) AND (endVar > startDate )    OR   Event begin AND ( startDate <endVar )
         } else if(endDate == null){
             Expr instantDateExpr = exprFactory.not(exprFactory.bound(startVar));
             Expr instantRangeExpr = exprFactory.ge(endVar, dateDeserializer.getNode(startDate));
@@ -518,23 +583,56 @@ public class SPARQLQueryHelper {
             Expr completeNoInstantExpr = exprFactory.and(noInstantDateExpr, noInstantRangeExpr);
 
             return exprFactory.or(completeInstantExpr, completeNoInstantExpr);
-        // No Event begin (instant Event) AND ( startDate < endVar < endDate )    OR  Event begin AND ( endDate > startVar AND startDate < endVar   )    
+            // No Event begin (instant Event) AND ( startDate < endVar < endDate )    OR  Event begin AND ( endDate > startVar AND startDate < endVar   )
         } else {
-            
+
             Expr instantDateExpr = exprFactory.not(exprFactory.bound(startVar));
             Expr instantRangeExpr = exprFactory.and(exprFactory.le(endVar, dateDeserializer.getNode(endDate)), exprFactory.ge(endVar, dateDeserializer.getNode(startDate)));
             Expr completeInstantExpr = exprFactory.and(instantDateExpr, instantRangeExpr);
 
             Expr noInstantDateExpr = exprFactory.bound(startVar);
             Expr noInstantRangeExpr = exprFactory.and(exprFactory.le(startVar, dateDeserializer.getNode(endDate)), exprFactory.ge(endVar, dateDeserializer.getNode(startDate)));
-            
+
             Expr completeNoInstantExpr = exprFactory.and(noInstantDateExpr, noInstantRangeExpr);
 
             return exprFactory.or(completeInstantExpr, completeNoInstantExpr);
 
         }
-       
+
     }
+
+    /**
+     * <pre>
+     *    Append a Subject Property Object clause to the given select
+     * </pre>
+     *
+     * @param select the SelectBuilder to update
+     * @param graph the graph to find
+     * @param subject the subject of the relation
+     * @param property the property of the relation
+     * @param value the object of the relation
+     *
+     */
+
+    public static void appendRelationFilter(SelectBuilder select, String graph, Node subject, Property property, Object value) throws Exception {
+
+        Objects.requireNonNull(select);
+        Objects.requireNonNull(subject);
+
+        // Get the ElementGroup in which we must append the triple
+        ElementGroup elementGroup;
+        if (graph != null) {
+            elementGroup = getSelectOrCreateGraphElementGroup(select.getWhereHandler().getClause(), NodeFactory.createURI(graph));
+        } else {
+            elementGroup = select.getWhereHandler().getClause();
+        }
+
+        // get deserializer associated to the given value and create triple
+        SPARQLDeserializer<?> deserializer = SPARQLDeserializers.getForClass(value.getClass());
+        Triple triple = new Triple(subject, property.asNode(), deserializer.getNode(value));
+        elementGroup.addTriplePattern(triple);
+    }
+
 
     public static Var makeVar(Object o) {
         return Converters.makeVar(o);
@@ -587,9 +685,9 @@ public class SPARQLQueryHelper {
      *
      */
     public static void computeCustomOrderByList(List<OrderBy> initialOrderByList,
-            List<OrderBy> orderByListWithoutCustomOrders,
-            Map<Expr, Order> specificOrderMap,
-            Map<String, Function<String, Stream<Expr>>> specificExprMapping) {
+                                                List<OrderBy> orderByListWithoutCustomOrders,
+                                                Map<Expr, Order> specificOrderMap,
+                                                Map<String, Function<String, Stream<Expr>>> specificExprMapping) {
 
         Objects.requireNonNull(initialOrderByList);
         Objects.requireNonNull(orderByListWithoutCustomOrders);
@@ -625,4 +723,126 @@ public class SPARQLQueryHelper {
         builder.getValuesHandler().addValueVar(sparqlVar,valueNodes);
     }
 
+    /**
+     * @param var variable
+     * @return an {@link E_Bound} expression for the given variable
+     *
+     * @apiNote Example : <br>
+     * <code><b>bound(var)</b></code> returns <br>
+     * <code><b>(BOUND(?var))</b></code>
+     */
+    public static Expr bound(Var var) {
+        return exprFactory.bound(var);
+    }
+
+    /**
+     * @param sparqlVar variable
+     * @param distinct indicate if we use or not DISTINCT on variable into COUNT
+     * @param value value
+     * @return a {@link E_Equals} expression between a COUNT aggregator on sparqlVar and value
+     *
+     * @throws SPARQLDeserializerNotFoundException if no {@link SPARQLDeserializer} corresponding to value {@link Class} is found
+     * @apiNote Example : <br>
+     * <code><b>countEqExpr(myVar,true,0)</b></code> returns <br>
+     * <code><b>(COUNT(DISTINCT(?myVar)) = 0)</b></code>
+     */
+    public static E_Equals countEqExpr(Var sparqlVar,  boolean distinct, Object value) throws SPARQLDeserializerNotFoundException {
+
+        // COUNT Aggregator
+        Aggregator countAgg = AggregatorFactory.createCountExpr(
+                distinct,
+                exprFactory.asExpr(sparqlVar)
+        );
+
+        XSDDatatype datatype = SPARQLDeserializers.getForClass(value.getClass()).getDataType();
+
+        // use ExprAggregator in order to transform Aggregator to Expr
+        return exprFactory.eq(
+                new ExprAggregator(sparqlVar,countAgg) ,
+                NodeFactory.createLiteral(value.toString(), datatype)
+        );
+    }
+
+    /**
+     * Build a triple with the given URI inserted in the specified tupleSlot.
+     *
+     * @param s Subject variable
+     * @param p Predicate variable
+     * @param o Object variable
+     * @param uri URI to insert
+     * @param tupleSlot Tuple slot where to insert the URI
+     * @return
+     * @throws IllegalArgumentException If GRAPH is given as a tuple slot
+     */
+    public static Triple buildUriTriple(Var s, Var p, Var o, URI uri, TupleSlot tupleSlot) throws IllegalArgumentException {
+        Node uriNode = Objects.requireNonNull(SPARQLDeserializers.nodeURI(uri));
+
+        Triple uriTriple;
+
+        switch (tupleSlot) {
+            case SUBJECT:
+                uriTriple = new Triple(uriNode, p, o);
+                break;
+            case PREDICATE:
+                uriTriple = new Triple(s, uriNode, o);
+                break;
+            case OBJECT:
+                uriTriple = new Triple(s, p, uriNode);
+                break;
+            default:
+                throw new IllegalArgumentException();
+        }
+
+        return uriTriple;
+    }
+
+    /**
+     * Adds the given triple in the where clause. If `namedGraph` is specified, then the triple will be matched in the
+     * specified named graph. Otherwise, the triple will be matched only in the default graph.
+     *
+     * @param where Where clause
+     * @param triple Triple to match
+     * @param namedGraph The named graph to look for the triple. If null, the default graph will be used.
+     */
+    public static void addTripleWhereClause(WhereClause<?> where, Triple triple, Object namedGraph) {
+        if (Objects.nonNull(namedGraph)) {
+            where.addGraph(namedGraph, triple);
+        } else {
+            Var graphVar = makeVar("_g");
+            where.addWhere(triple);
+            WhereBuilder notExistsWhere = new WhereBuilder();
+            notExistsWhere.addGraph(graphVar, triple);
+            where.addFilter(SPARQLQueryHelper.exprFactory.notexists(notExistsWhere));
+        }
+    }
+
+    public static WhereBuilder buildURIExistsClause(URI uri, TupleSlot tupleSlot, boolean inNamedGraph)
+            throws IllegalArgumentException {
+        WhereBuilder where = new WhereBuilder();
+        Triple triple = buildUriTriple(makeVar("_s"), makeVar("_p"), makeVar("_o"), uri, tupleSlot);
+        addTripleWhereClause(where, triple, inNamedGraph ? makeVar("_g") : null);
+        return where;
+    }
+
+    /**
+     * Reserved keyword used for GROUP_CONCAT var naming
+     */
+    private static final String CONCAT_VAR_SUFFIX = "__opensilex__concat";
+
+    public static final String GROUP_CONCAT_SEPARATOR = ",";
+
+
+    public static String getConcatVarName(String varName){
+        return varName+CONCAT_VAR_SUFFIX;
+    }
+
+    public static void appendGroupConcatAggregator(SelectBuilder select, Var var, boolean distinct) throws ParseException {
+
+        Aggregator groupConcat = distinct ?
+                new AggGroupConcatDistinct(exprFactory.asExpr(var), GROUP_CONCAT_SEPARATOR) :
+                new AggGroupConcat(exprFactory.asExpr(var), GROUP_CONCAT_SEPARATOR);
+
+        Var concatVar = makeVar(getConcatVarName(var.getVarName()));
+        select.addVar(groupConcat.toString(), concatVar);
+    }
 }

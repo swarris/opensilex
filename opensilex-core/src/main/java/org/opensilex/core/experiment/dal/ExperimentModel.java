@@ -7,22 +7,23 @@
 package org.opensilex.core.experiment.dal;
 
 import org.apache.jena.vocabulary.RDFS;
-import org.opensilex.core.ontology.Oeso;
-import org.opensilex.core.project.dal.ProjectModel;
-import org.opensilex.sparql.annotations.SPARQLProperty;
-import org.opensilex.sparql.annotations.SPARQLResource;
-import org.opensilex.sparql.model.SPARQLResourceModel;
-import org.opensilex.sparql.utils.ClassURIGenerator;
-
-import java.net.URI;
-import java.time.LocalDate;
-import java.util.List;
 import org.opensilex.core.experiment.factor.dal.FactorModel;
+import org.opensilex.core.ontology.Oeso;
+import org.opensilex.core.organisation.dal.InfrastructureFacilityModel;
 import org.opensilex.core.organisation.dal.InfrastructureModel;
+import org.opensilex.core.project.dal.ProjectModel;
 import org.opensilex.core.species.dal.SpeciesModel;
 import org.opensilex.security.authentication.SecurityOntology;
 import org.opensilex.security.group.dal.GroupModel;
 import org.opensilex.security.user.dal.UserModel;
+import org.opensilex.sparql.annotations.SPARQLProperty;
+import org.opensilex.sparql.annotations.SPARQLResource;
+import org.opensilex.sparql.model.SPARQLNamedResourceModel;
+import org.opensilex.uri.generation.ClassURIGenerator;
+
+import java.net.URI;
+import java.time.LocalDate;
+import java.util.List;
 
 /**
  * @author Vincent MIGOT
@@ -30,18 +31,12 @@ import org.opensilex.security.user.dal.UserModel;
 @SPARQLResource(
         ontology = Oeso.class,
         resource = "Experiment",
-        graph = "set/experiments",
+        graph = ExperimentModel.GRAPH,
         prefix = "expe"
 )
-public class ExperimentModel extends SPARQLResourceModel implements ClassURIGenerator<ExperimentModel> {
+public class ExperimentModel extends SPARQLNamedResourceModel<ExperimentModel> implements ClassURIGenerator<ExperimentModel> {
 
-    @SPARQLProperty(
-            ontology = RDFS.class,
-            property = "label",
-            required = true
-    )
-    String name;
-    public static final String LABEL_FIELD = "name";
+    public static final String GRAPH = "experiment";
 
     @SPARQLProperty(
             ontology = Oeso.class,
@@ -105,19 +100,27 @@ public class ExperimentModel extends SPARQLResourceModel implements ClassURIGene
 
     @SPARQLProperty(
             ontology = Oeso.class,
-            property = "hasSpecies"
+            property = "hasSpecies",
+            ignoreUpdateIfNull = true
     )
     List<SpeciesModel> species;
     public static final String SPECIES_FIELD = "species";
 
     @SPARQLProperty(
             ontology = Oeso.class,
-            property = "hasInfrastructure"
+            property = "usesOrganization"
     )
     List<InfrastructureModel> infrastructures;
     public static final String INFRASTRUCTURE_FIELD = "infrastructure";
- 
-    
+
+    @SPARQLProperty(
+            ontology = Oeso.class,
+            property = "usesFacility"
+    )
+    List<InfrastructureFacilityModel> facilities;
+    public static final String FACILITY_FIELD = "facilities";
+
+
     @SPARQLProperty(
             ontology = Oeso.class,
             property = "isPublic"
@@ -125,10 +128,10 @@ public class ExperimentModel extends SPARQLResourceModel implements ClassURIGene
     protected Boolean isPublic;
     public static final String IS_PUBLIC_FIELD = "isPublic";
 
-    @SPARQLProperty(
-            ontology = Oeso.class,
-            property = "measures"
-    )
+//    @SPARQLProperty(
+//            ontology = Oeso.class,
+//            property = "measures"
+//    )
     List<URI> variables;
     public static final String VARIABLES_FIELD = "variables";
 
@@ -140,14 +143,6 @@ public class ExperimentModel extends SPARQLResourceModel implements ClassURIGene
     List<FactorModel> factors;
     public static final String FACTORS_FIELD = "factors";
     public static final String FACTORS_CATEGORIES_FIELD = "factorsCategories";
-   
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
 
     public List<ProjectModel> getProjects() {
         return projects;
@@ -229,6 +224,14 @@ public class ExperimentModel extends SPARQLResourceModel implements ClassURIGene
         this.infrastructures = infrastructures;
     }
 
+    public List<InfrastructureFacilityModel> getFacilities() {
+        return facilities;
+    }
+
+    public void setFacilities(List<InfrastructureFacilityModel> facilities) {
+        this.facilities = facilities;
+    }
+
     public Boolean getIsPublic() {
         return isPublic;
     }
@@ -251,12 +254,5 @@ public class ExperimentModel extends SPARQLResourceModel implements ClassURIGene
 
     public void setFactors(List<FactorModel> factors) {
         this.factors = factors;
-    }
-
-    @Override
-    public String[] getUriSegments(ExperimentModel instance) {
-        return new String[]{
-            instance.getName()
-        };
     }
 }

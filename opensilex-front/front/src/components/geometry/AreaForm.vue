@@ -123,15 +123,10 @@
 <script lang="ts">
 import {Component, Prop} from "vue-property-decorator";
 import Vue from "vue";
-// @ts-ignore
 import HttpResponse, {OpenSilexResponse} from "opensilex-security/HttpResponse";
-// @ts-ignore
 import {OntologyService} from "opensilex-core/api/ontology.service";
-// @ts-ignore
-import {ObjectUriResponse} from "opensilex-core/model/objectUriResponse";
-// @ts-ignore
-import { EventGetDTO } from 'opensilex-core/model/eventGetDTO';
 import { VueJsOntologyExtensionService } from "../../lib";
+import {EventGetDTO, ObjectUriResponse } from 'opensilex-core/index';
 
 @Component
 export default class AreaForm extends Vue {
@@ -250,11 +245,11 @@ export default class AreaForm extends Vue {
   }
 
   isMove(): boolean {
-    if (!this.form) {
+    if (!this.form || ! this.form.rdf_type) {
       return false;
     }
-    return this.form.rdf_type == this.$opensilex.Oeev.MOVE_TYPE_URI
-    || this.form.rdf_type == this.$opensilex.Oeev.MOVE_TYPE_PREFIXED_URI
+
+    return this.$opensilex.Oeev.checkURIs(this.form.rdf_type,this.$opensilex.Oeev.MOVE_TYPE_URI)
   }
 
   private getEventFromUri(uri) {

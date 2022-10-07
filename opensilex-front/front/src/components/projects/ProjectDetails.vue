@@ -2,10 +2,11 @@
   <div class="container-fluid">
     <opensilex-PageHeader
       :title="name"
+      class="detail-element-header"
       description="component.project.project"
     ></opensilex-PageHeader>
 
-    <opensilex-PageActions :tabs="true" :returnButton="true">
+    <opensilex-PageActions :tabs="true" :returnButton="true" class="ProjectDetailsTabs">
       <template v-slot>
         <b-nav-item
           :active="isDetailsTab()"
@@ -30,26 +31,29 @@
     <opensilex-PageContent>
       <template v-slot>
         <opensilex-ProjectDescription
+        class="projectDescription"
           v-if="isDetailsTab()"
           :uri="uri"
         ></opensilex-ProjectDescription>
 
         <opensilex-DocumentTabList
+            class="projectDocuments"
             v-else-if="isDocumentTab()"
-            :modificationCredentialId="credentials.CREDENTIAL_PROJECT_MODIFICATION_ID"
+            :modificationCredentialId="credentials.CREDENTIAL_DOCUMENT_MODIFICATION_ID"
             :uri="uri"
         ></opensilex-DocumentTabList>
 
         <opensilex-AnnotationList
+          class="projectAnnotations"
           v-else-if="isAnnotationTab()"
           ref="annotationList"
           :target="uri"
           :displayTargetColumn="false"
           :enableActions="true"
           :modificationCredentialId="
-            credentials.CREDENTIAL_PROJECT_MODIFICATION_ID
+            credentials.CREDENTIAL_ANNOTATION_MODIFICATION_ID
           "
-          :deleteCredentialId="credentials.CREDENTIAL_PROJECT_DELETE_ID"
+          :deleteCredentialId="credentials.CREDENTIAL_ANNOTATION_DELETE_ID"
         ></opensilex-AnnotationList>
       </template>
     </opensilex-PageContent>
@@ -110,6 +114,13 @@ export default class ProjectDetails extends Vue {
 </script>
 
 <style lang="scss">
+.projectDescription, .projectAnnotations, .projectDocuments{
+  margin-top: 18px; 
+}
+
+.ProjectDetailsTabs {
+  margin-bottom: -9px
+}
 </style>
 
 <i18n>

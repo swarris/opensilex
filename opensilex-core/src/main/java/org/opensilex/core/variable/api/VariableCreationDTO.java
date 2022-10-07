@@ -6,29 +6,29 @@
 package org.opensilex.core.variable.api;
 
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import io.swagger.annotations.ApiModelProperty;
+import org.apache.commons.collections4.CollectionUtils;
 import org.codehaus.plexus.util.StringUtils;
 import org.opensilex.core.germplasm.api.GermplasmAPI;
 import org.opensilex.core.ontology.SKOSReferencesDTO;
 import org.opensilex.core.species.dal.SpeciesModel;
-import org.opensilex.core.variable.dal.EntityModel;
-import org.opensilex.core.variable.dal.MethodModel;
-import org.opensilex.core.variable.dal.CharacteristicModel;
-import org.opensilex.core.variable.dal.UnitModel;
-import org.opensilex.core.variable.dal.VariableModel;
+import org.opensilex.core.variable.dal.*;
 import org.opensilex.server.rest.validation.ValidURI;
 
 import javax.validation.constraints.NotNull;
+import org.opensilex.sparql.model.SPARQLNamedResourceModel;
 
 /**
  * @author vidalmor
  */
 @JsonPropertyOrder({
     "uri", "name", "alternative_name", "description",
-    "entity","characteristic", "trait", "trait_name", "method", "unit",
+    "entity", "entity_of_interest","characteristic", "trait", "trait_name", "method", "unit",
     "species","datatype","time_interval", "sampling_interval",
     "exact_match","close_match","broader","narrower"
 })
@@ -49,6 +49,9 @@ public class VariableCreationDTO extends SKOSReferencesDTO {
 
     @JsonProperty("entity")
     private URI entity;
+    
+    @JsonProperty("entity_of_interest")
+    private URI entityOfInterest;
 
     @JsonProperty("characteristic")
     private URI characteristic;
@@ -66,7 +69,7 @@ public class VariableCreationDTO extends SKOSReferencesDTO {
     private URI unit;
 
     @JsonProperty("species")
-    private URI species;
+    private List<URI> species;
 
     @JsonProperty("time_interval")
     private String timeInterval;
@@ -128,6 +131,16 @@ public class VariableCreationDTO extends SKOSReferencesDTO {
     }
 
     @ValidURI
+    @ApiModelProperty(example = "http://opensilex.dev/opensilex/id/plantMaterialLot#SL_001")
+    public URI getEntityOfInterest() {
+        return entityOfInterest;
+    }
+
+    public void setEntityOfInterest(URI entityOfInterest) {
+        this.entityOfInterest = entityOfInterest;
+    }
+    
+    @ValidURI
     @NotNull
     @ApiModelProperty(example = "http://opensilex.dev/set/variables/characteristic/Height", required = true)
     public URI getCharacteristic() {
@@ -137,7 +150,9 @@ public class VariableCreationDTO extends SKOSReferencesDTO {
     public void setCharacteristic(URI characteristic) {
         this.characteristic = characteristic;
     }
-
+    
+    @ValidURI
+    @NotNull
     @ApiModelProperty(example = "http://opensilex.dev/set/variables/method/Estimation")
     public URI getMethod() {
         return method;
@@ -196,11 +211,11 @@ public class VariableCreationDTO extends SKOSReferencesDTO {
 
     @ValidURI
     @ApiModelProperty(notes = "URI of the species associated with the variable", example = GermplasmAPI.GERMPLASM_EXAMPLE_SPECIES)
-    public URI getSpecies() {
+    public List<URI> getSpecies() {
         return species;
     }
 
-    public void setSpecies(URI species) {
+    public void setSpecies(List<URI> species) {
         this.species = species;
     }
 
@@ -218,16 +233,26 @@ public class VariableCreationDTO extends SKOSReferencesDTO {
         model.setDataType(dataType);
 
         model.setEntity(new EntityModel(entity));
-        model.setCharacteristic(new CharacteristicModel(characteristic));
-        if(method != null){
-            model.setMethod(new MethodModel(method));
+        
+        if(entityOfInterest != null){
+            InterestEntityModel entityOfInterest2 = new InterestEntityModel();
+            entityOfInterest2.setUri(entityOfInterest);
+            model.setEntityOfInterest(entityOfInterest2);            
         }
+        
+        model.setCharacteristic(new CharacteristicModel(characteristic));       
+        model.setMethod(new MethodModel(method));
         model.setUnit(new UnitModel(unit));
 
-        if(species != null){
-            SpeciesModel speciesModel = new SpeciesModel();
-            speciesModel.setUri(species);
-            model.setSpecies(speciesModel);
+        if (!CollectionUtils.isEmpty(species)){
+            List<SpeciesModel> speciesModelList = new ArrayList<>();
+            for(URI uri : species){
+                SpeciesModel speciesModel = new SpeciesModel();
+                speciesModel.setUri(uri);
+                speciesModelList.add(speciesModel);
+            };
+            model.setSpecies(speciesModelList);
+
         }
 
         if(trait != null){

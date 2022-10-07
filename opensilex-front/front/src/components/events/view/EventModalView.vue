@@ -52,11 +52,21 @@
         </div>
 
         <opensilex-DocumentTabList
+            :modificationCredentialId="credentials.CREDENTIAL_DOCUMENT_MODIFICATION_ID"
             :uri="event.uri"
             :search=false
         ></opensilex-DocumentTabList>
 
-        <template v-slot:modal-ok>{{$t('component.common.ok')}}</template>
+        <template v-slot:modal-footer>
+            <button
+                type="button"
+                class="btn greenThemeColor"
+                v-on:click="hide(false)"
+            >
+                {{ $t('component.common.ok') }}
+            </button>
+        </template>
+
 
     </b-modal>
 </template>
@@ -64,10 +74,9 @@
 <script lang="ts">
     import {Component, Prop, PropSync, Ref} from "vue-property-decorator";
     import Vue from "vue";
-    // @ts-ignore
-    import {EventDetailsDTO} from "opensilex-core/model/eventDetailsDTO";
     import {VueJsOntologyExtensionService, VueRDFTypeDTO} from "../../../lib";
     import HttpResponse, {OpenSilexResponse} from "../../../lib/HttpResponse";
+    import { EventDetailsDTO } from 'opensilex-core/index';
 
     @Component
     export default class EventModalView extends Vue {
@@ -89,6 +98,10 @@
         baseEventType: string;
 
         eventPropertyByUri: Map<string, VueRDFTypeDTO> = new Map();
+
+        get credentials() {
+          return this.$store.state.credentials;
+        }
 
         static getEmptyForm(): EventDetailsDTO {
             return {
@@ -114,7 +127,7 @@
 
         buildPropertyMap() {
 
-            if(! this.eventType || this.eventType == this.$opensilex.Oeev.EVENT_TYPE_URI || this.eventType == this.$opensilex.Oeev.EVENT_TYPE_PREFIXED_URI) {
+            if(! this.eventType || this.$opensilex.Oeev.checkURIs(this.eventType,this.$opensilex.Oeev.EVENT_TYPE_URI)) {
                 return;
             }
 
@@ -124,10 +137,10 @@
 
                     this.eventPropertyByUri = new Map();
                     typeModel.data_properties.forEach(property => {
-                        this.eventPropertyByUri.set(property.property, property);
+                        this.eventPropertyByUri.set(property.uri, property);
                     });
                     typeModel.object_properties.forEach(property => {
-                        this.eventPropertyByUri.set(property.property, property);
+                        this.eventPropertyByUri.set(property.uri, property);
                     });
                 }).catch(this.$opensilex.errorHandler);
 
@@ -161,7 +174,8 @@
             if (!this.event.rdf_type) {
                 return false;
             }
-            return (this.event.rdf_type == this.$opensilex.Oeev.MOVE_TYPE_URI || this.event.rdf_type == this.$opensilex.Oeev.MOVE_TYPE_PREFIXED_URI);
+
+          return this.$opensilex.Oeev.checkURIs(this.event.rdf_type,this.$opensilex.Oeev.MOVE_TYPE_URI)
         }
 
         hasRelations(event): boolean {

@@ -5,12 +5,8 @@
  */
 package org.opensilex.sparql.model;
 
-import org.apache.commons.collections4.CollectionUtils;
-
-import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Stack;
 import java.util.function.Consumer;
 
 /**
@@ -22,7 +18,7 @@ public abstract class SPARQLTreeModel<T extends SPARQLTreeModel<T>> extends SPAR
     protected T parent;
     public static final String PARENT_FIELD = "parent";
 
-    protected List<T> children;
+    protected List<T> children = new ArrayList<>();
     public static final String CHILDREN_FIELD = "children";
 
     public T getParent() {
@@ -41,17 +37,23 @@ public abstract class SPARQLTreeModel<T extends SPARQLTreeModel<T>> extends SPAR
         this.children = children;
     }
 
-    public List<T> getNodes() {
+    public List<T> getNodes(boolean includeThis) {
         List<T> visitedList = new ArrayList<>();
-        visit(visitedList::add);
+        visit(visitedList::add,includeThis);
         return visitedList;
     }
 
     public void visit(Consumer<T> consumer){
-        consumer.accept((T) this);
+        visit(consumer,true);
+    }
+
+    public void visit(Consumer<T> consumer, boolean includeThis){
+        if(includeThis){
+            consumer.accept((T) this);
+        }
         if (getChildren() != null) {
             getChildren().forEach(
-                child -> child.visit(consumer)
+                    child -> child.visit(consumer)
             );
         }
     }

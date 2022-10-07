@@ -11,6 +11,8 @@ import org.opensilex.sparql.annotations.SPARQLProperty;
 import org.opensilex.sparql.annotations.SPARQLResource;
 import org.opensilex.sparql.model.SPARQLResourceModel;
 
+import static org.opensilex.sparql.ontology.dal.OntologyDAO.CUSTOM_TYPES_AND_PROPERTIES_GRAPH;
+
 /**
  *
  * @author vmigot
@@ -18,8 +20,8 @@ import org.opensilex.sparql.model.SPARQLResourceModel;
 @SPARQLResource(
         ontology = VueOwlExtension.class,
         resource = "ClassExtension",
-        graph = "opensilex-owl-extension",
-        prefix = "oowl-ext"
+        graph = CUSTOM_TYPES_AND_PROPERTIES_GRAPH,
+        allowBlankNode = true
 )
 public class VueClassExtensionModel extends SPARQLResourceModel {
 
@@ -67,5 +69,4 @@ public class VueClassExtensionModel extends SPARQLResourceModel {
         this.properties = properties;
     }
 
-    
 }

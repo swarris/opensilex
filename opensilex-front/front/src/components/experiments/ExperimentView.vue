@@ -4,6 +4,7 @@
                 icon="ik#ik-layers"
                 :title="name"
                 description="component.experiment.view.title"
+                class= "detail-element-header"
         ></opensilex-PageHeader>
 
         <opensilex-PageActions :tabs="true" :returnButton="true">
@@ -28,6 +29,12 @@
                         :active="isDataTab()"
                         :to="{ path: '/experiment/data/' + encodeURIComponent(uri) }"
                 >{{ $t("ExperimentView.data") }}
+                </b-nav-item
+                >
+                <b-nav-item
+                        :active="isDataVisualisation()"
+                        :to="{ path: '/experiment/data-visualisation/' + encodeURIComponent(uri) }"
+                >{{ $t("ExperimentView.data-visualisation") }}
                 </b-nav-item
                 >
                 <b-nav-item
@@ -71,6 +78,10 @@
                         v-else-if="isDataTab()"
                         :uri="uri"
                 ></opensilex-ExperimentData>
+                <opensilex-ExperimentDataVisualisation
+                        v-else-if="isDataVisualisation()"
+                        :uri="uri"
+                ></opensilex-ExperimentDataVisualisation>
 
                 <opensilex-MapView
                         v-else-if="isMap()"
@@ -79,7 +90,7 @@
 
                 <opensilex-DocumentTabList
                         v-else-if="isDocumentTab()"
-                        :modificationCredentialId="credentials.CREDENTIAL_EXPERIMENT_MODIFICATION_ID"
+                        :modificationCredentialId="credentials.CREDENTIAL_DOCUMENT_MODIFICATION_ID"
                         :uri="uri"
                 ></opensilex-DocumentTabList>
                 
@@ -89,8 +100,8 @@
                         :target="uri"
                         :displayTargetColumn="false"
                         :enableActions="true"
-                        :modificationCredentialId="credentials.CREDENTIAL_EXPERIMENT_MODIFICATION_ID"
-                        :deleteCredentialId="credentials.CREDENTIAL_EXPERIMENT_DELETE_ID"
+                        :modificationCredentialId="credentials.CREDENTIAL_ANNOTATION_MODIFICATION_ID"
+                        :deleteCredentialId="credentials.CREDENTIAL_ANNOTATION_DELETE_ID"
                 ></opensilex-AnnotationList>
 
             </template>
@@ -162,6 +173,10 @@
             return this.$route.path.startsWith("/experiment/data/");
         }
 
+        isDataVisualisation() {
+            return this.$route.path.startsWith("/experiment/data-visualisation/");
+        }
+
         isDocumentTab() {
           return this.$route.path.startsWith("/experiment/document/");
         }
@@ -185,6 +200,7 @@ en:
         document: Documents
         factors: Factors
         map: Map
+        data-visualisation: Visualization
 fr:
     ExperimentView:
         details: Détail
@@ -193,4 +209,5 @@ fr:
         document: Documents
         factors: Facteurs
         map: Carte
+        data-visualisation: Visualisation
 </i18n>

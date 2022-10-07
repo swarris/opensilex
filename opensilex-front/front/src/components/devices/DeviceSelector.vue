@@ -1,12 +1,12 @@
 <template>
   <opensilex-SelectForm v-if="renderComponent"
     ref="deviceSelector"
-    :label="property.name | label"
+    :label="label"
     placeholder="DeviceSelector.placeholder"
     noResultsText="DeviceSelector.no-results-text"
     :selected.sync="deviceURIs"
-    :multiple="property.is_list | multiple"
-    :required="property.is_required | required"
+    :multiple="multiple"
+    :required="required"
     :searchMethod="search"
     :itemLoadingMethod="load"
     :conversionMethod="dtoToSelectNode"
@@ -22,8 +22,7 @@
 
 import {Component, Prop, PropSync, Ref, Watch} from "vue-property-decorator";
 import Vue from "vue";
-import {DevicesService} from "opensilex-core/index";
-import {DeviceGetDTO} from "opensilex-core/model/deviceGetDTO";
+import {DeviceGetDTO, DevicesService} from "opensilex-core/index";
 import HttpResponse, {OpenSilexResponse} from "opensilex-core/HttpResponse";
 
 
@@ -40,7 +39,7 @@ export default class DeviceSelector extends Vue {
   deviceURIs;
 
   @Prop()
-  deviceType;
+  type: string;
 
   @Prop({default: false})
   multiple;
@@ -51,7 +50,7 @@ export default class DeviceSelector extends Vue {
   @Prop({default: "component.menu.devices"})
   label;
 
-  @Watch("deviceType")
+  @Watch("type")
   onTypeChange() {
     this.renderComponent = false;
     this.$nextTick(() => {
@@ -72,9 +71,10 @@ export default class DeviceSelector extends Vue {
   search(query, page, pageSize) {
 
     return this.$service.searchDevices(
-        this.deviceType, // rdf_type filter
+        this.type, // rdf_type filter
         true, // include_subtypes boolean
         query, // name filter
+        undefined, // variable filter
         undefined, // year filter
         undefined, // existence_date filter
         undefined, // brand filter
@@ -127,7 +127,7 @@ en:
     no-results-text: No device found
 fr:
   DeviceSelector:
-    placeholder: Rechercher et sélectionner un ou plusieurs équipements
-    no-results-text: Aucun équipement trouvé
+    placeholder: Rechercher et sélectionner un ou plusieurs dispositif
+    no-results-text: Aucun dispositif trouvé
 
 </i18n>

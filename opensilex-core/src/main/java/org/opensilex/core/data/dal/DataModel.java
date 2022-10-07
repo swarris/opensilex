@@ -11,6 +11,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
+
 import org.apache.commons.codec.digest.DigestUtils;
 import org.bson.Document;
 import org.opensilex.nosql.mongodb.MongoModel;
@@ -25,6 +27,7 @@ public class DataModel extends MongoModel {
     private URI target;
     
     private URI variable;
+    public static final String VARIABLE_FIELD = "variable";
     
     private DataProvenanceModel provenance;
 
@@ -34,7 +37,10 @@ public class DataModel extends MongoModel {
     
     private String offset;
 
+    public static final String IS_VALUE_DATE_FIELD = "isValueDate";
+
     private Object value;
+    public static final String VALUE_FIELD = "value";
     
     private List<Object> rawData;
     
@@ -123,24 +129,9 @@ public class DataModel extends MongoModel {
     }
            
     @Override
-    public String[] getUriSegments(MongoModel instance) {
-        ObjectMapper mapper = ObjectMapperContextResolver.getObjectMapper();
-        String provenanceString = "";
-        try {
-            provenanceString = mapper.writeValueAsString(getProvenance());
-        } catch (JsonProcessingException ex) {            
-        }
-        
-        String objectsString = "";
-        if (getTarget() != null) {
-            objectsString = getTarget().toString();
-        }
-        
-        String md5Hash = DigestUtils.md5Hex(getVariable().toString() + objectsString + provenanceString);
-        
-        return new String[]{            
-            String.valueOf(getDate().getEpochSecond()),
-            md5Hash
+    public String[] getInstancePathSegments(MongoModel instance) {
+        return new String[]{
+                UUID.randomUUID().toString()
         };
     } 
 

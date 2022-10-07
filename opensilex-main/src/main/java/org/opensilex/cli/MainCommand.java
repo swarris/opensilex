@@ -8,10 +8,8 @@ package org.opensilex.cli;
 
 import java.io.File;
 import java.io.FileReader;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Properties;
-import java.util.ServiceLoader;
+import java.util.*;
+
 import org.opensilex.OpenSilex;
 import org.opensilex.OpenSilexModule;
 import org.opensilex.OpenSilexSetup;
@@ -37,13 +35,16 @@ import picocli.CommandLine.Option;
 )
 public class MainCommand extends AbstractOpenSilexCommand implements IVersionProvider {
 
+    public static final String VERSION_COMMAND = "--version";
+    public static final String VERSION_ALIAS_COMMAND = "-V";
+
     /**
      * <pre>
      * Version flag option (automatically handled by the picocli library).
      * For details see: https://picocli.info/#_version_help
      * </pre>
      */
-    @Option(names = {"-V", "--version"}, versionHelp = true, description = "Print version information and exit.")
+    @Option(names = {VERSION_ALIAS_COMMAND, VERSION_COMMAND}, versionHelp = true, description = "Print version information and exit.")
     private boolean versionRequested;
 
     /**
@@ -53,88 +54,90 @@ public class MainCommand extends AbstractOpenSilexCommand implements IVersionPro
      * @throws Exception In case of any error during command execution
      */
     public static void main(String[] args) throws Exception {
-        boolean forceDebug = false;
-//        forceDebug = true;
 
-        
+        if (args.length == 0) {
+            getCLI(null).execute(HelpOption.HELP_COMMAND);
+            return;
+        }
+
         LOGGER.debug("Create OpenSilex instance from command line");
-        OpenSilexSetup setup = OpenSilex.createSetup(args, forceDebug);
-        OpenSilex instance = OpenSilex.createInstance(setup, false);
+        OpenSilexSetup setup = OpenSilex.createSetup(args, false);
+
+        // set different profile, this ensures to not run useless operation,
+        // when OpenSILEX is not running as server
+        if(! runServer(args)){
+            setup = new OpenSilexSetup(
+                        setup.getBaseDirectory(),
+                        OpenSilex.INTERNAL_OPERATIONS_PROFILE_ID,
+                        setup.getConfigFile(),
+                        setup.isDebug(),
+                        setup.isNoCache(),
+                        setup.getArgs(),
+                        setup.getCliArgsList()
+                );
+        }
 
         // If no arguments assume help is requested
         args = setup.getRemainingArgs();
-        for (String s : args) {
-            LOGGER.debug("CLI input parameters", s);
+        for (String arg: args) {
+            LOGGER.info("CLI input parameters : {}", arg);
         }
 
-        if (args.length == 0) {
-            args = new String[]{"--help"};
-        }
-        
-        CommandLine cli = getCLI(args, null);
-
-        try {
-            // Avoid to start OpenSilex instance if only help is required
-            CommandLine.ParseResult parsedArgs = cli.parseArgs(args);
-
-            boolean isHelp = false;
-            List<CommandLine> foundCommands = parsedArgs.asCommandLineList();
-
-            if (foundCommands.size() > 0) {
-                CommandLine commandToExcute = foundCommands.get(foundCommands.size() - 1);
-                isHelp = isHelp || commandToExcute.getCommandName().equals("help");
-                isHelp = isHelp || commandToExcute.getSubcommands().size() > 0;
-            }
-
-            if (!isHelp) {
-                instance.startup();
-                commands.forEach((OpenSilexCommand cmd) -> {
-                    cmd.setOpenSilex(instance);
-                });
-            }
-        } catch (CommandLine.ParameterException ex) {
-            // Silently ignore parameter exceptions meaning help will be printed
+        if(setup.getConfigFile() != null){
+            LOGGER.info("Using config file : {}", setup.getConfigFile().getAbsolutePath());
         }
 
+        // need to create an OpenSilex instance in order to retrieve all modules
+        // since each module can register commands line entries
+        OpenSilex opensilex = OpenSilex.createInstance(setup, false);
+        CommandLine cli = getCLI(opensilex);
+
+        opensilex.startup();
         cli.execute(args);
     }
 
-    /**
-     * Loader for commands.
-     */
-    private static ServiceLoader<OpenSilexCommand> commands;
+    private static boolean runServer(String[] args){
+        return Arrays.asList(args).containsAll(Arrays.asList("server","start"));
+    }
 
     /**
      * Return command line instance.
      *
-     * @param args Command line arguments
-     * @param instance OpenSilex instance
+     * @param openSilex OpenSilex instance
      *
      * @return loaded command
      */
-    public static CommandLine getCLI(String[] args, OpenSilex instance) {
+    public static CommandLine getCLI(OpenSilex openSilex) {
 
         // Initialize picocli library
-        CommandLine cli = new CommandLine(new MainCommand()) {
-
-        };
-
-        // Register all commands contained in OpenSilex modules
-        LOGGER.debug("Load commands");
-        commands = ServiceLoader.load(OpenSilexCommand.class, OpenSilex.getClassLoader());
-        commands.forEach((OpenSilexCommand cmd) -> {
-            if (instance != null) {
-                cmd.setOpenSilex(instance);
-            }
-            Command cmdDef = cmd.getClass().getAnnotation(CommandLine.Command.class);
-            cli.addSubcommand(cmdDef.name(), cmd);
-            LOGGER.debug("Add command: " + cmdDef.name());
-        });
-        LOGGER.debug("Commands loaded");
-
-        // Define the help factory class
+        CommandLine cli = new CommandLine(new MainCommand()) {};
         cli.setHelpFactory(new HelpFactory());
 
+        if(openSilex == null){
+            return cli;
+        }
+
+        // Register each command from each OpenSilex module
+        Set<Class<? extends OpenSilexCommand>> loadedClasses = new HashSet<>();
+
+        for (OpenSilexModule module : openSilex.getModules()) {
+
+            // use the ServiceLoader for load all commands from a module
+            ServiceLoader<OpenSilexCommand> commandsFromModules = ServiceLoader.load(OpenSilexCommand.class, module.getClass().getClassLoader());
+            commandsFromModules.forEach((OpenSilexCommand cmd) -> {
+
+                // register command with CLI
+                if(!loadedClasses.contains(cmd.getClass())){
+                    loadedClasses.add(cmd.getClass());
+
+                    cmd.setOpenSilex(openSilex);
+                    Command cmdDef = cmd.getClass().getAnnotation(CommandLine.Command.class);
+                    cli.addSubcommand(cmdDef.name(), cmd);
+                    LOGGER.debug("Add command: {}", cmdDef.name());
+                }
+
+            });
+        }
         return cli;
     }
 
@@ -156,11 +159,13 @@ public class MainCommand extends AbstractOpenSilexCommand implements IVersionPro
         return versionList.toArray(versionListArray);
     }
 
+    public static final String GIT_COMMIT_COMMAND = "git-commit";
+
     /**
      * Display git commit number used for building this OpenSilex version.
      */
     @Command(
-            name = "git-commit",
+            name = GIT_COMMIT_COMMAND,
             header = "Display git commit",
             description = "Display git commit identifier used for building this OpenSilex version"
     )

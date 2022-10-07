@@ -2,8 +2,8 @@
   <div>
     <p @click="visible = !visible" style="cursor: pointer">
       <strong>{{ $t("ScientificObjectImportHelp.exceptedFormat") }} </strong>
-      <opensilex-Icon v-if="!visible" icon="fa#eye" class="text-primary" />
-      <opensilex-Icon v-if="visible" icon="fa#eye-slash" class="text-primary" />
+      <opensilex-Icon v-if="!visible" icon="fa#eye" class="ScientificObjectImportHelpEyeIcon" />
+      <opensilex-Icon v-if="visible" icon="fa#eye-slash" class="ScientificObjectImportHelpEyeIcon" />
     </p>
     <b-collapse id="collapse-4" v-model="visible" class="mt-2">
       <b-table-simple responsive>
@@ -18,7 +18,7 @@
             <b-th class="uri-field">vocabulary:hasFacility</b-th>
             <b-th class="uri-field">vocabulary:isPartOf</b-th>
             <b-th class="uri-field">rdfs:comment</b-th>
-            <b-th>geometry</b-th>
+            <b-th class="uri-field">vocabulary:hasGeometry</b-th>
             <b-th class="uri-field">uri:property...</b-th>
           </b-tr>
         </b-thead>
@@ -199,7 +199,7 @@ fr :
     type-help: "URI du type d'objet scientifique"
     hasCreationDate-help: "Date de création (format: AAAA-MM-JJ)"
     hasDestructionDate-help: "Date de destruction (format: AAAA-MM-JJ)"
-    hasFacility-help: "Installation technique initiale"
+    hasFacility-help: "Installation environnementale initiale"
     isPartOf-help: "URI ou nom du parent"
     comment-help: "Description"
     geometry-help: "Coordonnées géospatiales (Format WKT)"
